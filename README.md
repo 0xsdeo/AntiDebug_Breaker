@@ -104,4 +104,4 @@ CC11001100、Dexter
 
 ## Contact
 
-略。
+如有bug或其他问题可提交issues。
