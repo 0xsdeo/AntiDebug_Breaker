@@ -100,8 +100,8 @@ CC11001100、Dexter
 
 ## 交流群
 
-略。
+![1757466255136](image/README/1757466255136.png)
 
 ## Contact
 
-如有bug或其他问题可提交issues。
+如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我。
