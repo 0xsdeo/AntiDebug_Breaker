@@ -1,53 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AntiDebug Breaker</title>
     <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
-<div class="container">
-    <header>
-        <div class="title-container">
-            <h1>AntiDebug</h1>
-            <div class="breaker">Breaker</div>
-            <a href="https://github.com/0xsdeo/AntiDebug_Breaker" target="_blank" class="github-link">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 0C5.374 0 0 5.373 0 12C0 17.302 3.438 21.8 8.207 23.387C8.806 23.498 9 23.126 9 22.81V20.576C5.662 21.302 4.967 19.16 4.967 19.16C4.421 17.773 3.634 17.404 3.634 17.404C2.545 16.659 3.717 16.675 3.717 16.675C4.922 16.759 5.556 17.912 5.556 17.912C6.626 19.746 8.363 19.216 9.048 18.909C9.155 18.134 9.466 17.604 9.81 17.305C7.145 17.001 4.343 15.971 4.343 11.374C4.343 10.063 4.812 8.993 5.579 8.153C5.455 7.85 5.044 6.628 5.696 4.977C5.696 4.977 6.704 4.655 8.997 6.207C9.954 5.941 10.98 5.808 12 5.803C13.02 5.808 14.047 5.941 15.006 6.207C17.297 4.655 18.303 4.977 18.303 4.977C18.956 6.629 18.545 7.851 18.421 8.153C19.191 8.993 19.656 10.064 19.656 11.374C19.656 15.983 16.849 16.998 14.177 17.295C14.607 17.667 15 18.397 15 19.517V22.81C15 23.129 15.192 23.504 15.801 23.386C20.566 21.797 24 17.3 24 12C24 5.373 18.627 0 12 0Z" fill="currentColor"/>
-                </svg>
-            </a>
-        </div>
-        <div class="search-container">
-            <input type="text" id="search-input" placeholder="Search scripts...">
-            <button id="search-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-            </button>
-        </div>
-    </header>
+    <div class="container">
+        <header>
+            <div class="title-container">
+                <h1>AntiDebug</h1>
+                <div class="breaker">Breaker</div>
+                <a href="https://github.com/0xsdeo/AntiDebug_Breaker" target="_blank" class="github-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 0C5.374 0 0 5.373 0 12C0 17.302 3.438 21.8 8.207 23.387C8.806 23.498 9 23.126 9 22.81V20.576C5.662 21.302 4.967 19.16 4.967 19.16C4.421 17.773 3.634 17.404 3.634 17.404C2.545 16.659 3.717 16.675 3.717 16.675C4.922 16.759 5.556 17.912 5.556 17.912C6.626 19.746 8.363 19.216 9.048 18.909C9.155 18.134 9.466 17.604 9.81 17.305C7.145 17.001 4.343 15.971 4.343 11.374C4.343 10.063 4.812 8.993 5.579 8.153C5.455 7.85 5.044 6.628 5.696 4.977C5.696 4.977 6.704 4.655 8.997 6.207C9.954 5.941 10.98 5.808 12 5.803C13.02 5.808 14.047 5.941 15.006 6.207C17.297 4.655 18.303 4.977 18.303 4.977C18.956 6.629 18.545 7.851 18.421 8.153C19.191 8.993 19.656 10.064 19.656 11.374C19.656 15.983 16.849 16.998 14.177 17.295C14.607 17.667 15 18.397 15 19.517V22.81C15 23.129 15.192 23.504 15.801 23.386C20.566 21.797 24 17.3 24 12C24 5.373 18.627 0 12 0Z"
+                            fill="currentColor" />
+                    </svg>
+                </a>
+            </div>
 
-    <div class="scripts-grid">
-        <!-- Scripts will be dynamically loaded here -->
+            <!-- 标签切换栏 -->
+            <div class="tabs-container">
+                <button class="tab-btn active" data-tab="antidebug">反调试</button>
+                <button class="tab-btn" data-tab="vue">Vue</button>
+            </div>
+
+            <!-- 搜索栏（仅反调试板块显示） -->
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Search scripts...">
+                <button id="search-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 反调试板块：3列网格 -->
+        <div class="scripts-grid">
+            <!-- Scripts will be dynamically loaded here -->
+        </div>
+
+        <!-- Vue板块：横向列表 + 路由列表 -->
+        <div class="vue-content" style="display: none;">
+            <!-- Vue脚本控制列表 -->
+            <div class="vue-scripts-list">
+                <!-- Vue scripts will be dynamically loaded here -->
+            </div>
+
+            <!-- Vue Router 数据显示区 -->
+            <div class="vue-router-data">
+                <div class="vue-version-display" style="display: none;">
+                    <div class="routes-info"></div>
+                    <div>
+                        <span class="version-label">Vue 版本：</span>
+                        <span class="version-value"></span>
+                    </div>
+                </div>
+
+                <!-- 新增：Vue路由搜索框 -->
+                <div class="vue-route-search-container" style="display: none;">
+                    <input type="text" id="vue-route-search-input" placeholder="Search routes...">
+                    <button id="vue-route-search-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="routes-list-container">
+                    <!-- 路由列表将动态加载 -->
+                </div>
+
+                <!-- 新增：批量复制按钮 -->
+                <div class="routes-actions-footer" style="display: none;">
+                    <button class="footer-btn copy-all-paths-btn">复制所有路径</button>
+                    <button class="footer-btn copy-all-urls-btn">复制所有URL</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="no-results">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p>No scripts found matching your search</p>
+        </div>
+
+        <footer>
+            <div class="signature">By 0xsdeo</div>
+            <div class="hint">页面刷新后更改生效</div>
+        </footer>
     </div>
 
-    <div class="no-results">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </svg>
-        <p>No scripts found matching your search</p>
-    </div>
-
-    <footer>
-        <div class="signature">By 0xsdeo</div>
-        <div class="hint">页面刷新后更改生效</div>
-    </footer>
-</div>
-
-<script src="popup.js"></script>
+    <script src="popup.js"></script>
 </body>
+
 </html>

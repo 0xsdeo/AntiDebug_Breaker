@@ -2,46 +2,74 @@
   {
     "id": "Bypass_Debugger",
     "name": "Bypass Debugger",
-    "description": "绕过无限Debugger， 如绕不过去或报错请使用火狐忽略断点。"
+    "description": "绕过无限Debugger， 如绕不过去或报错请使用火狐忽略断点。",
+    "category": "antidebug"
   },
   {
     "id": "hook_log v0.1",
     "name": "hook_log v0.1",
-    "description": "防止js重写log方法，该版本不生效可以尝试使用v0.2版本。"
+    "description": "防止js重写log方法，该版本不生效可以尝试使用v0.2版本。",
+    "category": "antidebug"
   },
   {
     "id": "hook_log v0.2",
     "name": "hook_log v0.2",
-    "description": "防止js重写log方法 注：v0.1和v0.2脚本不能混用"
+    "description": "防止js重写log方法 注：v0.1和v0.2脚本不能混用",
+    "category": "antidebug"
   },
   {
     "id": "hook_table",
     "name": "Hook table",
-    "description": "绕过js检测运行时间差来实现反调试"
+    "description": "绕过js检测运行时间差来实现反调试",
+    "category": "antidebug"
   },
   {
     "id": "hook_clear",
     "name": "hook clear",
-    "description": "禁止js清除控制台数据"
+    "description": "禁止js清除控制台数据",
+    "category": "antidebug"
   },
   {
     "id": "hook_close",
     "name": "hook close",
-    "description": "重写close方法，以此来避免网站反调试关闭当前页面"
+    "description": "重写close方法，以此来避免网站反调试关闭当前页面",
+    "category": "antidebug"
   },
   {
     "id": "hook_history",
     "name": "hook history",
-    "description": "避免网站反调试返回上一页或某个特定历史页面"
+    "description": "避免网站反调试返回上一页或某个特定历史页面",
+    "category": "antidebug"
   },
   {
     "id": "Fixed_window_size",
     "name": "<div style=\"font-size: 0.9em;\">Fixed window size</div>",
-    "description": "固定浏览器高度宽度值以绕过前端检测用户是否打开控制台"
+    "description": "固定浏览器高度宽度值以绕过前端检测用户是否打开控制台",
+    "category": "antidebug"
   },
   {
     "id": "location_href",
     "name": "页面跳转JS代码定位通杀方案",
-    "description": "阻断页面跳转，留在当前页面分析"
+    "description": "阻断页面跳转，留在当前页面分析",
+    "category": "antidebug"
+  },
+  {
+    "id": "Get_Vue_0",
+    "name": "获取路由",
+    "description": "获取已加载的路由并显示在下方的表格中，注意未加载的路由不会被获取到，如果长时间未获取到可能是由于目标站点未使用vue router。",
+    "category": "vue"
+  },
+  {
+    "id": "Get_Vue_1",
+    "name": "清除跳转",
+    "description": "本脚本将清除vue router的跳转函数，如果清除后依然会跳转，可能是由于在代码中调用的不是vue router的跳转函数，此时可以考虑开启反调试板块中的hook close或hook history脚本，再或者打开页面跳转JS代码定位通杀方案脚本，定位到跳转的函数并替换清除。",
+    "category": "vue",
+    "parentScript": "Get_Vue_0"
+  },
+  {
+    "id": "Clear_vue_Navigation_Guards",
+    "name": "清除路由守卫",
+    "description": "仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载的操作并导致报错，此时可以考虑关闭并亲自替换js逻辑实现绕过。",
+    "category": "vue"
   }
 ]

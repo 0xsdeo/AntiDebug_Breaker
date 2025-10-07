@@ -169,12 +169,45 @@ chrome.storage.onChanged.addListener(async (changes, namespace) => {
     }
 });
 
-// 监听脚本注册更新请求
+// 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 处理脚本注册更新请求
     if (message.type === 'update_scripts_registration') {
         registerScripts(message.hostname, message.enabledScripts);
         sendResponse({success: true});
+        return true;
     }
+    
+    // 处理 Vue Router 数据
+    if (message.type === 'VUE_ROUTER_DATA' && sender.tab) {
+        try {
+            const hostname = new URL(sender.tab.url).hostname;
+            const storageKey = `${hostname}_vue_data`;
+            
+            // 存储 Vue Router 数据
+            chrome.storage.local.set({
+                [storageKey]: {
+                    ...message.data,
+                    timestamp: Date.now()
+                }
+            });
+            
+            // 转发给所有打开的popup（如果有的话）
+            chrome.runtime.sendMessage({
+                type: 'VUE_ROUTER_DATA_UPDATE',
+                hostname: hostname,
+                data: message.data
+            }).catch(() => {
+                // popup未打开，忽略错误
+            });
+        } catch (e) {
+            console.error('[AntiDebug] Failed to store Vue Router data:', e);
+        }
+        
+        sendResponse({success: true});
+        return true;
+    }
+    
     return true;
 });
 
@@ -192,6 +225,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // 只在页面加载完成后更新徽章
     if (changeInfo.status === 'complete') {
         updateBadgeForTab(tab);
+    }
+    
+    // 当页面开始加载时，清除旧的 Vue Router 数据
+    if (changeInfo.status === 'loading' && tab.url) {
+        try {
+            const hostname = new URL(tab.url).hostname;
+            const storageKey = `${hostname}_vue_data`;
+            chrome.storage.local.remove(storageKey);
+        } catch (e) {
+            // 忽略错误
+        }
     }
 });
 
