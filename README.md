@@ -11,6 +11,8 @@
 
 ## 脚本使用场景
 
+### 反调试
+
 - Bypass Debugger
 
 该脚本用于绕过**无限Debugger**，目前引起无限Debugger的三种核心方式为：
@@ -90,19 +92,33 @@ outerWidth：1400
 
 本脚本为CC11001100师傅所作，脚本原地址：`https://github.com/JSREI/page-redirect-code-location-hook`，用于阻断页面跳转，留在当前页面分析。
 
+### Vue
+
+- 获取路由
+
+获取已加载的路由并显示在下方的表格中，注意未加载的路由不会被获取到，如果长时间未获取到可能是由于目标站点未使用vue router，也可能是因为目标站点未加载完毕。
+
+- 清除跳转
+
+本脚本将清除vue router的跳转方法，如果清除后依然会跳转，一方面可能是由于注入的脚本还未清除跳转方法，网站就调用了方法进行跳转，此时可以考虑手动替换js清除跳转方法。另一方面可能是由于在代码中调用的不是vue router的跳转方法，此时可以考虑开启反调试板块中的hook close或hook history脚本，再或者打开页面跳转JS代码定位通杀方案脚本，定位到跳转的函数并替换清除。
+
+- 清除路由守卫
+
+仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载等其他操作，此时可以考虑关闭本脚本并亲自替换js逻辑实现绕过。
+
 ## 插件使用注意事项
 
 进入网页后，无论是开启脚本还是关闭脚本，需刷新页面后才会生效。
 
 ## 致谢
 
-CC11001100、Dexter
+CC11001100、Dexter、<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>
 
 ## 交流群
 
 二维码过期了可以加我的微信：I-0xsdeo
 
-![1758767964661](image/README/1758767964661.jpg)
+![1759934860200](image/README/1759934860200.png)
 
 ## Contact
 
