@@ -69,7 +69,7 @@
   {
     "id": "Clear_vue_Navigation_Guards",
     "name": "清除路由守卫",
-    "description": "仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载的操作，此时可以考虑关闭本脚本并亲自替换js逻辑实现绕过。",
+    "description": "仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载等其他操作，此时可以考虑关闭本脚本并亲自替换js逻辑实现绕过。",
     "category": "vue"
   }
 ]
