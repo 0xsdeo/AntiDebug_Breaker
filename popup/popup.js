@@ -355,157 +355,175 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 显示 Vue Router 数据
-    function displayVueRouterData(vueRouterInfo) {
-        // 默认隐藏搜索框和底部按钮
-        if (vueRouteSearchContainer) {
-            vueRouteSearchContainer.style.display = 'none';
-        }
-        if (routesActionsFooter) {
-            routesActionsFooter.style.display = 'none';
-        }
-
-        if (!vueRouterInfo) {
-            routesListContainer.innerHTML = '<div class="empty-state">等待检测 Vue Router（如需检测请打开<strong>获取路由</strong>并刷新网站）</div>';
-            vueVersionDisplay.style.display = 'none';
-            return;
-        }
-
-        // 未找到Router
-        if (vueRouterInfo.notFound) {
-            routesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 Vue Router（可尝试重新打开插件）</div>';
-            vueVersionDisplay.style.display = 'none';
-            return;
-        }
-
-        // 显示Vue版本和路由信息
-        if (vueRouterInfo.vueVersion) {
-            vueVersionDisplay.style.display = 'flex';
-            versionValue.textContent = vueRouterInfo.vueVersion;
-
-            // 显示路由信息到左侧
-            const routesInfo = vueVersionDisplay.querySelector('.routes-info');
-            if (!vueRouterInfo.routes || vueRouterInfo.routes.length === 0) {
-                routesInfo.textContent = '路由表为空';
-            } else {
-                const routerMode = vueRouterInfo.routerMode || 'history';
-                const routeCount = vueRouterInfo.routes.length;
-                routesInfo.innerHTML = `完整URL列表 (<span class="highlight">${routerMode}</span> 模式) -- <span class="highlight">${routeCount}</span> 条路由`;
+        // 显示 Vue Router 数据
+        function displayVueRouterData(vueRouterInfo) {
+            // 路径规范化函数：确保路径以 / 开头
+            const normalizePath = (path) => {
+                // 如果路径为空或只有空格，返回根路径
+                if (!path || path.trim() === '') {
+                    return '/';
+                }
+                // 如果路径不以 / 开头，加上 /
+                if (!path.startsWith('/')) {
+                    return '/' + path;
+                }
+                return path;
+            };
+    
+            // 默认隐藏搜索框和底部按钮
+            if (vueRouteSearchContainer) {
+                vueRouteSearchContainer.style.display = 'none';
             }
-        }
-
-        // 显示路由列表
-        if (!vueRouterInfo.routes || vueRouterInfo.routes.length === 0) {
-            routesListContainer.innerHTML = '<div class="empty-state">⚠️ 路由表为空</div>';
-            return;
-        }
-
-        // 显示搜索框和底部按钮（有路由时才显示）
-        vueRouteSearchContainer.style.display = 'flex';
-        routesActionsFooter.style.display = 'flex';
-
-        const baseUrl = vueRouterInfo.baseUrl || window.location.origin;
-        const routerMode = vueRouterInfo.routerMode || 'history';
-        const allRoutes = vueRouterInfo.routes;
-
-        // 渲染路由列表的函数
-        const renderRoutes = (routesToShow) => {
-            routesListContainer.innerHTML = '';
-
-            routesToShow.forEach(route => {
-                // 根据路由模式拼接URL
-                let fullUrl;
-                if (routerMode === 'hash') {
-                    fullUrl = baseUrl + '/#' + route.path;
+            if (routesActionsFooter) {
+                routesActionsFooter.style.display = 'none';
+            }
+    
+            if (!vueRouterInfo) {
+                routesListContainer.innerHTML = '<div class="empty-state">等待检测 Vue Router（如需检测请打开<strong>获取路由</strong>并刷新网站）</div>';
+                vueVersionDisplay.style.display = 'none';
+                return;
+            }
+    
+            // 未找到Router
+            if (vueRouterInfo.notFound) {
+                routesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 Vue Router（可尝试重新打开插件）</div>';
+                vueVersionDisplay.style.display = 'none';
+                return;
+            }
+    
+            // 显示Vue版本和路由信息
+            if (vueRouterInfo.vueVersion) {
+                vueVersionDisplay.style.display = 'flex';
+                versionValue.textContent = vueRouterInfo.vueVersion;
+    
+                // 显示路由信息到左侧
+                const routesInfo = vueVersionDisplay.querySelector('.routes-info');
+                if (!vueRouterInfo.routes || vueRouterInfo.routes.length === 0) {
+                    routesInfo.textContent = '路由表为空';
                 } else {
-                    fullUrl = baseUrl + route.path;
+                    const routerMode = vueRouterInfo.routerMode || 'history';
+                    const routeCount = vueRouterInfo.routes.length;
+                    routesInfo.innerHTML = `完整URL列表 (<span class="highlight">${routerMode}</span> 模式) -- <span class="highlight">${routeCount}</span> 条路由`;
                 }
-
-                const routeItem = document.createElement('div');
-                routeItem.className = 'route-item';
-
-                routeItem.innerHTML = `
-                    <div class="route-url" title="${fullUrl}">${fullUrl}</div>
-                    <div class="route-actions">
-                        <button class="route-btn copy-btn" data-url="${fullUrl}">复制</button>
-                        <button class="route-btn open-btn" data-url="${fullUrl}">打开</button>
-                    </div>
-                `;
-
-                routesListContainer.appendChild(routeItem);
-
-                // 复制按钮
-                const copyBtn = routeItem.querySelector('.copy-btn');
-                copyBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(fullUrl).then(() => {
-                        const originalText = copyBtn.textContent;
-                        copyBtn.textContent = '✓ 已复制';
-                        setTimeout(() => {
-                            copyBtn.textContent = originalText;
-                        }, 1500);
-                    }).catch(err => {
-                        console.error('复制失败:', err);
+            }
+    
+            // 显示路由列表
+            if (!vueRouterInfo.routes || vueRouterInfo.routes.length === 0) {
+                routesListContainer.innerHTML = '<div class="empty-state">⚠️ 路由表为空</div>';
+                return;
+            }
+    
+            // 显示搜索框和底部按钮（有路由时才显示）
+            vueRouteSearchContainer.style.display = 'flex';
+            routesActionsFooter.style.display = 'flex';
+    
+            const baseUrl = vueRouterInfo.baseUrl || window.location.origin;
+            const routerMode = vueRouterInfo.routerMode || 'history';
+            const allRoutes = vueRouterInfo.routes;
+    
+            // 渲染路由列表的函数
+            const renderRoutes = (routesToShow) => {
+                routesListContainer.innerHTML = '';
+    
+                routesToShow.forEach(route => {
+                    // 规范化路径
+                    const normalizedPath = normalizePath(route.path);
+                    
+                    // 根据路由模式拼接URL
+                    let fullUrl;
+                    if (routerMode === 'hash') {
+                        fullUrl = baseUrl + '/#' + normalizedPath;
+                    } else {
+                        fullUrl = baseUrl + normalizedPath;
+                    }
+    
+                    const routeItem = document.createElement('div');
+                    routeItem.className = 'route-item';
+    
+                    routeItem.innerHTML = `
+                        <div class="route-url" title="${fullUrl}">${fullUrl}</div>
+                        <div class="route-actions">
+                            <button class="route-btn copy-btn" data-url="${fullUrl}">复制</button>
+                            <button class="route-btn open-btn" data-url="${fullUrl}">打开</button>
+                        </div>
+                    `;
+    
+                    routesListContainer.appendChild(routeItem);
+    
+                    // 复制按钮
+                    const copyBtn = routeItem.querySelector('.copy-btn');
+                    copyBtn.addEventListener('click', () => {
+                        navigator.clipboard.writeText(fullUrl).then(() => {
+                            const originalText = copyBtn.textContent;
+                            copyBtn.textContent = '✓ 已复制';
+                            setTimeout(() => {
+                                copyBtn.textContent = originalText;
+                            }, 1500);
+                        }).catch(err => {
+                            console.error('复制失败:', err);
+                        });
+                    });
+    
+                    // 打开按钮
+                    const openBtn = routeItem.querySelector('.open-btn');
+                    openBtn.addEventListener('click', () => {
+                        chrome.tabs.update(currentTab_obj.id, {
+                            url: fullUrl
+                        });
                     });
                 });
-
-                // 打开按钮
-                const openBtn = routeItem.querySelector('.open-btn');
-                openBtn.addEventListener('click', () => {
-                    chrome.tabs.update(currentTab_obj.id, {
-                        url: fullUrl
-                    });
+            };
+    
+            // 初始渲染所有路由
+            renderRoutes(allRoutes);
+    
+            // 搜索功能
+            vueRouteSearchInput.value = ''; // 清空搜索框
+            vueRouteSearchInput.oninput = (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const filteredRoutes = allRoutes.filter(route => {
+                    const path = route.path.toLowerCase();
+                    const name = (route.name || '').toLowerCase();
+                    return path.includes(searchTerm) || name.includes(searchTerm);
                 });
-            });
-        };
-
-        // 初始渲染所有路由
-        renderRoutes(allRoutes);
-
-        // 搜索功能
-        vueRouteSearchInput.value = ''; // 清空搜索框
-        vueRouteSearchInput.oninput = (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredRoutes = allRoutes.filter(route => {
-                const path = route.path.toLowerCase();
-                const name = (route.name || '').toLowerCase();
-                return path.includes(searchTerm) || name.includes(searchTerm);
-            });
-            renderRoutes(filteredRoutes);
-        };
-
-        // 批量复制功能
-        copyAllPathsBtn.onclick = () => {
-            const allPaths = allRoutes.map(route => route.path).join('\n');
-            navigator.clipboard.writeText(allPaths).then(() => {
-                const originalText = copyAllPathsBtn.textContent;
-                copyAllPathsBtn.textContent = '✓ 已复制';
-                setTimeout(() => {
-                    copyAllPathsBtn.textContent = originalText;
-                }, 1500);
-            }).catch(err => {
-                console.error('复制失败:', err);
-            });
-        };
-
-        copyAllUrlsBtn.onclick = () => {
-            const allUrls = allRoutes.map(route => {
-                if (routerMode === 'hash') {
-                    return baseUrl + '/#' + route.path;
-                } else {
-                    return baseUrl + route.path;
-                }
-            }).join('\n');
-
-            navigator.clipboard.writeText(allUrls).then(() => {
-                const originalText = copyAllUrlsBtn.textContent;
-                copyAllUrlsBtn.textContent = '✓ 已复制';
-                setTimeout(() => {
-                    copyAllUrlsBtn.textContent = originalText;
-                }, 1500);
-            }).catch(err => {
-                console.error('复制失败:', err);
-            });
-        };
-    }
+                renderRoutes(filteredRoutes);
+            };
+    
+            // 批量复制功能
+            copyAllPathsBtn.onclick = () => {
+                const allPaths = allRoutes.map(route => normalizePath(route.path)).join('\n');
+                navigator.clipboard.writeText(allPaths).then(() => {
+                    const originalText = copyAllPathsBtn.textContent;
+                    copyAllPathsBtn.textContent = '✓ 已复制';
+                    setTimeout(() => {
+                        copyAllPathsBtn.textContent = originalText;
+                    }, 1500);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                });
+            };
+    
+            copyAllUrlsBtn.onclick = () => {
+                const allUrls = allRoutes.map(route => {
+                    const normalizedPath = normalizePath(route.path);
+                    if (routerMode === 'hash') {
+                        return baseUrl + '/#' + normalizedPath;
+                    } else {
+                        return baseUrl + normalizedPath;
+                    }
+                }).join('\n');
+    
+                navigator.clipboard.writeText(allUrls).then(() => {
+                    const originalText = copyAllUrlsBtn.textContent;
+                    copyAllUrlsBtn.textContent = '✓ 已复制';
+                    setTimeout(() => {
+                        copyAllUrlsBtn.textContent = originalText;
+                    }, 1500);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                });
+            };
+        }
 
     // 处理反调试脚本开关切换
     function handleScriptToggle(scriptId, isChecked, scriptItem) {
