@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // 兼容单实例或未找到的情况
             else {
-                cachedVueDataList = data.notFound ? [] : [data];
+                cachedVueDataList = [data];
                 currentInstanceIndex = 0;
                 
                 // 保存到 storage
