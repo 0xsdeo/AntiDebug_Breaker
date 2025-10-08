@@ -2,7 +2,7 @@
 
 ## Intro
 
-本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS库</a>所写的google插件，将致力于绕过前端各种反调试操作。
+本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS库</a>所写的google插件，将致力于绕过前端各种反调试操作以及Vue信息收集。
 
 ## 插件安装
 
@@ -105,6 +105,8 @@ outerWidth：1400
 - 清除路由守卫
 
 仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载等其他操作，此时可以考虑关闭本脚本并亲自替换js逻辑实现绕过。
+
+脚本原理：<a href="https://mp.weixin.qq.com/s/klhBr2V7UJpspiAmRY1DXQ">最大化收集Vue框架(SPA类型)下的js</a>
 
 ## 插件使用注意事项
 
