@@ -776,3 +776,85 @@ footer {
     color: var(--primary-light);
     transform: scale(1.1);
 }
+
+/* ========== 多实例标签页样式 ========== */
+.instance-tabs {
+    margin-bottom: 12px;
+}
+
+.instance-tabs-header {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow-x: auto;
+}
+
+.instance-tab-btn {
+    padding: 10px 16px;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--on-surface-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 120px;
+}
+
+.instance-tab-btn:hover {
+    background: var(--surface-light);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.instance-tab-btn.active {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-color: var(--primary-light);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.4);
+}
+
+.instance-tab-btn.active .instance-tab-subtitle {
+    opacity: 0.9;
+}
+
+.instance-tab-title {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.instance-tab-subtitle {
+    font-size: 11px;
+    opacity: 0.7;
+    font-weight: 500;
+}
+
+/* 标签页滚动条 */
+.instance-tabs-header::-webkit-scrollbar {
+    height: 6px;
+}
+
+.instance-tabs-header::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+    border-radius: 3px;
+}
+
+.instance-tabs-header::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
+}
+
+.instance-tabs-header::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-light);
+}

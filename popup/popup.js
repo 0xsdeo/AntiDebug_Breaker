@@ -21,22 +21,47 @@ document.addEventListener('DOMContentLoaded', () => {
     let enabledScripts = []; // 启用的脚本
     let hostname = '';
     let currentTab_obj = null;
-    let cachedVueData = null; // 在popup中缓存Vue数据
+    let cachedVueDataList = []; // 在popup中缓存所有Vue实例数据（改为数组）
+    let currentInstanceIndex = 0; // 当前选中的实例索引
 
     // 监听来自 background 的 Vue Router 数据更新
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.type === 'VUE_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
-            // 缓存数据到popup变量
-            cachedVueData = message.data;
-
-            // 直接使用消息中的数据显示
-            displayVueRouterData(message.data);
-
-            // 同时保存到 storage（为下次打开popup准备）
-            const storageKey = `${hostname}_vue_data`;
-            chrome.storage.local.set({
-                [storageKey]: message.data
-            });
+            const data = message.data;
+            
+            // 处理多实例数据
+            if (data.type === 'MULTIPLE_INSTANCES' && data.instances) {
+                cachedVueDataList = data.instances;
+                currentInstanceIndex = 0; // 默认选中第一个
+                
+                // 保存到 storage
+                const storageKey = `${hostname}_vue_data`;
+                chrome.storage.local.set({
+                    [storageKey]: {
+                        type: 'MULTIPLE_INSTANCES',
+                        instances: data.instances,
+                        totalCount: data.totalCount,
+                        timestamp: Date.now()
+                    }
+                });
+                
+                // 显示多实例
+                displayMultipleInstances();
+            }
+            // 兼容单实例或未找到的情况
+            else {
+                cachedVueDataList = data.notFound ? [] : [data];
+                currentInstanceIndex = 0;
+                
+                // 保存到 storage
+                const storageKey = `${hostname}_vue_data`;
+                chrome.storage.local.set({
+                    [storageKey]: data
+                });
+                
+                // 显示单实例
+                displayMultipleInstances();
+            }
         }
     });
 
@@ -156,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
             scriptsGrid.style.display = 'none';
             vueContent.style.display = 'flex';
             renderVueScripts(scriptsToShow);
-            // 使用缓存的数据显示
-            displayVueRouterData(cachedVueData);
+            // 使用缓存的数据显示（改为多实例显示）
+            displayMultipleInstances();
         }
     }
 
@@ -274,6 +299,59 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return scriptItem;
+    }
+
+    // 显示多个Vue实例（新增函数）
+    function displayMultipleInstances() {
+        const instanceTabs = document.querySelector('.instance-tabs');
+        const tabsHeader = document.querySelector('.instance-tabs-header');
+        
+        // 没有数据
+        if (!cachedVueDataList || cachedVueDataList.length === 0) {
+            instanceTabs.style.display = 'none';
+            displayVueRouterData(null);
+            return;
+        }
+        
+        // 只有一个实例，隐藏标签页，保持原有UI
+        if (cachedVueDataList.length === 1) {
+            instanceTabs.style.display = 'none';
+            displayVueRouterData(cachedVueDataList[0]);
+            return;
+        }
+        
+        // 多实例场景：显示标签页
+        instanceTabs.style.display = 'block';
+        
+        // 生成标签按钮
+        tabsHeader.innerHTML = '';
+        cachedVueDataList.forEach((instance, index) => {
+            const tabBtn = document.createElement('button');
+            tabBtn.className = `instance-tab-btn ${index === currentInstanceIndex ? 'active' : ''}`;
+            
+            const routeCount = instance.routes?.length || 0;
+            tabBtn.innerHTML = `
+                <div class="instance-tab-title">实例 ${index + 1}</div>
+                <div class="instance-tab-subtitle">Vue ${instance.vueVersion} · ${routeCount} 路由</div>
+            `;
+            
+            tabBtn.onclick = () => {
+                // 更新激活状态
+                document.querySelectorAll('.instance-tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                tabBtn.classList.add('active');
+                
+                // 更新当前索引并显示
+                currentInstanceIndex = index;
+                displayVueRouterData(cachedVueDataList[index]);
+            };
+            
+            tabsHeader.appendChild(tabBtn);
+        });
+        
+        // 显示当前选中的实例
+        displayVueRouterData(cachedVueDataList[currentInstanceIndex]);
     }
 
     // 显示 Vue Router 数据

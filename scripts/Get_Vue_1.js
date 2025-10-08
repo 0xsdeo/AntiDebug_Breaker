@@ -50,27 +50,36 @@
     window.addEventListener('message', (event) => {
         // 只接受来自同一窗口的消息
         if (event.source !== window) return;
-        
+
         // 检查是否是请求Vue数据的消息
         if (event.data && event.data.type === 'REQUEST_VUE_ROUTER_DATA' && event.data.source === 'antidebug-extension') {
             // 从缓存的实例中获取最新数据
             if (validInstancesCache.length > 0) {
-                validInstancesCache.forEach((cached, index) => {
+                // 一次性收集所有实例数据
+                const allInstancesData = validInstancesCache.map((cached, index) => {
                     try {
                         const latestRoutes = listAllRoutes(cached.routerInstance);
                         const latestVersion = getVueVersion(cached.element);
                         const latestMode = getRouterMode(cached.routerInstance);
-                        
-                        sendToExtension({
+
+                        return {
                             vueVersion: latestVersion,
                             routerMode: latestMode,
                             routes: latestRoutes,
                             instanceIndex: index + 1,
                             baseUrl: window.location.origin
-                        });
+                        };
                     } catch (e) {
                         console.warn('获取Router最新数据时出错:', e);
+                        return null;
                     }
+                }).filter(data => data !== null);
+
+                // 一次性发送所有实例
+                sendToExtension({
+                    type: 'MULTIPLE_INSTANCES',
+                    instances: allInstancesData,
+                    totalCount: allInstancesData.length
                 });
             } else {
                 // 没有缓存的实例，发送未找到消息
@@ -132,11 +141,11 @@
 
             if (historyObj) {
                 const historyType = historyObj.constructor?.name || '';
-                
+
                 if (historyType.toLowerCase().includes('hash')) {
                     return 'hash';
                 }
-                if (historyType.toLowerCase().includes('html5') || 
+                if (historyType.toLowerCase().includes('html5') ||
                     historyType.toLowerCase().includes('web') && !historyType.toLowerCase().includes('hash')) {
                     return 'history';
                 }
