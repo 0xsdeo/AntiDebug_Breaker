@@ -1,4 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ========== Base模式偏好设置（全局持久化） ==========
+    function getBaseModePreference() {
+        try {
+            return localStorage.getItem('antidebug_base_mode') || 'with-base';
+        } catch (e) {
+            return 'with-base';
+        }
+    }
+
+    function setBaseModePreference(mode) {
+        try {
+            localStorage.setItem('antidebug_base_mode', mode);
+        } catch (e) {
+            console.warn('保存base模式偏好失败:', e);
+        }
+    }
+    // ========================================================
+
     const scriptsGrid = document.querySelector('.scripts-grid');
     const vueContent = document.querySelector('.vue-content');
     const vueScriptsList = document.querySelector('.vue-scripts-list');
@@ -354,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
         displayVueRouterData(cachedVueDataList[currentInstanceIndex]);
     }
 
-    // 显示 Vue Router 数据
         // 显示 Vue Router 数据
         function displayVueRouterData(vueRouterInfo) {
             // 路径规范化函数：确保路径以 / 开头
@@ -371,11 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
             };
     
             // 默认隐藏搜索框和底部按钮
+            const routeBaseSwitch = document.querySelector('.route-base-switch');
             if (vueRouteSearchContainer) {
                 vueRouteSearchContainer.style.display = 'none';
             }
             if (routesActionsFooter) {
                 routesActionsFooter.style.display = 'none';
+            }
+            if (routeBaseSwitch) {
+                routeBaseSwitch.style.display = 'none';
             }
     
             if (!vueRouterInfo) {
@@ -419,7 +440,60 @@ document.addEventListener('DOMContentLoaded', () => {
     
             const baseUrl = vueRouterInfo.baseUrl || window.location.origin;
             const routerMode = vueRouterInfo.routerMode || 'history';
+            const routerBase = vueRouterInfo.routerBase || '';
             const allRoutes = vueRouterInfo.routes;
+    
+            // 检测到 routerBase 时显示切换按钮
+        // ✅ 从 localStorage 读取用户偏好（全局）
+        let currentBaseMode = getBaseModePreference();
+        
+        if (routerBase && routerBase.trim() !== '' && routerBase !== '/') {
+            routeBaseSwitch.style.display = 'flex';
+            
+            // 显示检测到的 base 路径
+            const baseValue = routeBaseSwitch.querySelector('.base-value');
+            baseValue.textContent = routerBase;
+            
+            // ✅ 恢复按钮激活状态
+            const baseTabs = routeBaseSwitch.querySelectorAll('.route-base-tab');
+            baseTabs.forEach(tab => {
+                if (tab.dataset.mode === currentBaseMode) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            
+            // 绑定切换按钮事件
+            baseTabs.forEach(tab => {
+                tab.onclick = () => {
+                    // 更新激活状态
+                    baseTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // 更新当前模式
+                    currentBaseMode = tab.dataset.mode;
+                    
+                    // ✅ 保存到 localStorage（全局）
+                    setBaseModePreference(currentBaseMode);
+                    
+                    // 重新渲染路由列表（考虑搜索框内容）
+                        const searchTerm = vueRouteSearchInput.value.toLowerCase().trim();
+                        if (searchTerm) {
+                            // 如果搜索框有内容，过滤后再渲染
+                            const filteredRoutes = allRoutes.filter(route => {
+                                const path = route.path.toLowerCase();
+                                const name = (route.name || '').toLowerCase();
+                                return path.includes(searchTerm) || name.includes(searchTerm);
+                            });
+                            renderRoutes(filteredRoutes);
+                        } else {
+                            // 搜索框为空，显示全部
+                            renderRoutes(allRoutes);
+                        }
+                };
+            });
+        }
     
             // 渲染路由列表的函数
             const renderRoutes = (routesToShow) => {
@@ -429,12 +503,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 规范化路径
                     const normalizedPath = normalizePath(route.path);
                     
+                    // 根据当前模式决定是否添加 base
+                    let pathToUse = normalizedPath;
+                    if (routerBase && routerBase.trim() !== '' && routerBase !== '/' && currentBaseMode === 'with-base') {
+                        // 带基础路径模式
+                        const cleanBase = routerBase.endsWith('/') ? routerBase.slice(0, -1) : routerBase;
+                        pathToUse = cleanBase + normalizedPath;
+                    }
+                    
                     // 根据路由模式拼接URL
                     let fullUrl;
                     if (routerMode === 'hash') {
-                        fullUrl = baseUrl + '/#' + normalizedPath;
+                        fullUrl = baseUrl + '/#' + pathToUse;
                     } else {
-                        fullUrl = baseUrl + normalizedPath;
+                        fullUrl = baseUrl + pathToUse;
                     }
     
                     const routeItem = document.createElement('div');
@@ -489,9 +571,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderRoutes(filteredRoutes);
             };
     
-            // 批量复制功能
+            // 批量复制功能 - 根据当前模式复制
             copyAllPathsBtn.onclick = () => {
-                const allPaths = allRoutes.map(route => normalizePath(route.path)).join('\n');
+                const allPaths = allRoutes.map(route => {
+                    const normalizedPath = normalizePath(route.path);
+                    if (routerBase && routerBase.trim() !== '' && routerBase !== '/' && currentBaseMode === 'with-base') {
+                        const cleanBase = routerBase.endsWith('/') ? routerBase.slice(0, -1) : routerBase;
+                        return cleanBase + normalizedPath;
+                    }
+                    return normalizedPath;
+                }).join('\n');
+                
                 navigator.clipboard.writeText(allPaths).then(() => {
                     const originalText = copyAllPathsBtn.textContent;
                     copyAllPathsBtn.textContent = '✓ 已复制';
@@ -506,10 +596,17 @@ document.addEventListener('DOMContentLoaded', () => {
             copyAllUrlsBtn.onclick = () => {
                 const allUrls = allRoutes.map(route => {
                     const normalizedPath = normalizePath(route.path);
+                    let pathToUse = normalizedPath;
+                    
+                    if (routerBase && routerBase.trim() !== '' && routerBase !== '/' && currentBaseMode === 'with-base') {
+                        const cleanBase = routerBase.endsWith('/') ? routerBase.slice(0, -1) : routerBase;
+                        pathToUse = cleanBase + normalizedPath;
+                    }
+                    
                     if (routerMode === 'hash') {
-                        return baseUrl + '/#' + normalizedPath;
+                        return baseUrl + '/#' + pathToUse;
                     } else {
-                        return baseUrl + normalizedPath;
+                        return baseUrl + pathToUse;
                     }
                 }).join('\n');
     

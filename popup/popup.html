@@ -69,6 +69,18 @@
                     </div>
                 </div>
 
+                <!-- 新增：Base路径切换按钮（仅检测到base时显示） -->
+                <div class="route-base-switch" style="display: none;">
+                    <div class="route-base-info">
+                        <span class="base-label">检测到基础路径：</span>
+                        <span class="base-value"></span>
+                    </div>
+                    <div class="route-base-tabs">
+                        <button class="route-base-tab active" data-mode="with-base">带基础路径</button>
+                        <button class="route-base-tab" data-mode="standard">标准路径</button>
+                    </div>
+                </div>
+
                 <!-- 新增：Vue路由搜索框 -->
                 <div class="vue-route-search-container" style="display: none;">
                     <input type="text" id="vue-route-search-input" placeholder="Search routes...">

@@ -858,3 +858,68 @@ footer {
 .instance-tabs-header::-webkit-scrollbar-thumb:hover {
     background: var(--primary-light);
 }
+
+/* ========== Base路径切换按钮样式 ========== */
+.route-base-switch {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.route-base-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.base-label {
+    font-weight: 600;
+    color: var(--on-surface);
+    font-size: 13px;
+}
+
+.base-value {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary-light);
+    background: rgba(26, 115, 232, 0.1);
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.route-base-tabs {
+    display: flex;
+    gap: 8px;
+}
+
+.route-base-tab {
+    flex: 1;
+    padding: 8px 16px;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--on-surface-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.route-base-tab:hover {
+    background: var(--primary);
+    border-color: var(--primary-light);
+    color: #ffffff;
+}
+
+.route-base-tab.active {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-color: var(--primary-light);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(26, 115, 232, 0.4);
+}

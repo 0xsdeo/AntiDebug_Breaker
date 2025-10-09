@@ -67,7 +67,8 @@
                                 routerMode: latestMode,
                                 routes: latestRoutes,
                                 instanceIndex: index + 1,
-                                baseUrl: window.location.origin
+                                baseUrl: window.location.origin,
+                                routerBase: extractRouterBase(cached.routerInstance)
                             };
                         } catch (e) {
                             console.warn('获取Router最新数据时出错:', e);
@@ -166,6 +167,27 @@
             return 'history';
         }
     }
+
+        // 提取Router基础路径
+        function extractRouterBase(router) {
+            try {
+                // Vue Router 2/3: 从 options.base 获取
+                if (router.options?.base) {
+                    return router.options.base;
+                }
+                // Vue Router 4: 从 history.base 获取
+                if (router.history?.base) {
+                    return router.history.base;
+                }
+                // Vue Router 4: 从 options.history.base 获取
+                if (router.options?.history?.base) {
+                    return router.options.history.base;
+                }
+            } catch (e) {
+                console.warn('提取Router基础路径时出错:', e);
+            }
+            return '';
+        }
 
     // 路径拼接函数
     function joinPath(base, path) {
