@@ -69,16 +69,19 @@
                     </div>
                 </div>
 
-                <!-- 新增：Base路径切换按钮（仅检测到base时显示） -->
-                <div class="route-base-switch" style="display: none;">
-                    <div class="route-base-info">
-                        <span class="base-label">检测到基础路径：</span>
-                        <span class="base-value"></span>
+                <!-- 新增：Base路径输入（仅检测到base时显示） -->
+                <div class="route-base-input-container" style="display: none;">
+                    <div class="detected-base-info">
+                        <span class="detected-base-label">检测到基础路径：</span>
+                        <span class="detected-base-value"></span>
+                        <button class="apply-detected-base-btn">应用</button>
                     </div>
-                    <div class="route-base-tabs">
-                        <button class="route-base-tab active" data-mode="with-base">带基础路径</button>
-                        <button class="route-base-tab" data-mode="standard">标准路径</button>
+                    <div class="custom-base-input-wrapper">
+                        <label class="custom-base-label">自定义基础路径：</label>
+                        <input type="text" id="custom-base-input" class="custom-base-input" placeholder="留空显示标准路径，如：/admin" />
+                        <button class="clear-base-btn">清空</button>
                     </div>
+                    <div class="base-hint">💡 输入后实时更新路由列表</div>
                 </div>
 
                 <!-- 新增：Vue路由搜索框 -->

@@ -373,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
                 // 显示 Vue Router 数据
+            // 显示 Vue Router 数据
     function displayVueRouterData(vueRouterInfo) {
         // 路径规范化函数：确保路径以 / 开头
         const normalizePath = (path) => {
@@ -387,16 +388,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return path;
         };
 
+        // URL清理函数：清理多余斜杠和尾部斜杠
+        const cleanUrl = (url) => {
+            return url.replace(/([^:]\/)\/+/g, '$1').replace(/\/$/, '');
+        };
+
         // 默认隐藏搜索框和底部按钮
-        const routeBaseSwitch = document.querySelector('.route-base-switch');
+        const routeBaseInputContainer = document.querySelector('.route-base-input-container');
         if (vueRouteSearchContainer) {
             vueRouteSearchContainer.style.display = 'none';
         }
         if (routesActionsFooter) {
             routesActionsFooter.style.display = 'none';
         }
-        if (routeBaseSwitch) {
-            routeBaseSwitch.style.display = 'none';
+        if (routeBaseInputContainer) {
+            routeBaseInputContainer.style.display = 'none';
         }
 
         if (!vueRouterInfo) {
@@ -440,22 +446,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let baseUrl = vueRouterInfo.baseUrl || window.location.origin;
         const routerMode = vueRouterInfo.routerMode || 'history';
-        let routerBase = vueRouterInfo.routerBase || '';
+        const detectedBase = vueRouterInfo.routerBase || ''; // 检测到的base（只用于显示）
         const allRoutes = vueRouterInfo.routes;
 
-        // ✅ 从当前标签页URL提取真实的baseUrl（包含子路径）
+        // ✅ 从当前标签页URL提取真实的baseUrl（包含子路径和#）
         if (currentTab_obj && currentTab_obj.url) {
             try {
                 const currentUrl = currentTab_obj.url;
                 if (routerMode === 'hash' && (currentUrl.includes('#/') || currentUrl.includes('#'))) {
                     const hashIndex = currentUrl.indexOf('#');
                     if (hashIndex > 0) {
-                        // 提取 # 之前的完整路径作为baseUrl
-                        baseUrl = currentUrl.substring(0, hashIndex);
-                        // ✅ 清理尾部斜杠，避免双斜杠
-                        if (baseUrl.endsWith('/')) {
-                            baseUrl = baseUrl.slice(0, -1);
-                        }
+                        baseUrl = currentUrl.substring(0, hashIndex + 1);
                     }
                 }
             } catch (e) {
@@ -463,97 +464,109 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ✅ 清理和验证 routerBase
-        let hasValidBase = false;
-        let baseContainsHash = false; // 标记原始base是否包含#
+        // ✅ 过滤无效的检测结果（完整URL或包含#的base）
+        let shouldShowBaseInput = false;
+        let cleanDetectedBase = '';
         
-        if (routerBase && routerBase.trim() !== '') {
-            // 1. 如果是完整URL，忽略
-            if (routerBase.startsWith('http://') || routerBase.startsWith('https://')) {
-                console.warn('[AntiDebug] routerBase是完整URL，已忽略:', routerBase);
-                routerBase = '';
-            }
-            // 2. 如果包含 #，记录并清理
-            else if (routerBase.includes('#')) {
-                console.warn('[AntiDebug] routerBase包含#符号:', routerBase);
-                baseContainsHash = true;
-                // 去掉 # 及其后面的内容，保留路径部分
-                routerBase = routerBase.split('#')[0];
-                // 清理尾部斜杠
-                if (routerBase.endsWith('/')) {
-                    routerBase = routerBase.slice(0, -1);
-                }
-            }
-            // 3. 普通路径：清理尾部斜杠
-            else {
-                if (routerBase.endsWith('/')) {
-                    routerBase = routerBase.slice(0, -1);
-                }
-            }
-            
-            // 4. 判断是否有效
-            if (routerBase && routerBase !== '/') {
-                hasValidBase = true;
+        if (detectedBase && detectedBase.trim() !== '') {
+            // 如果是完整URL或包含#，不显示输入框
+            if (detectedBase.startsWith('http://') || detectedBase.startsWith('https://') || detectedBase.includes('#')) {
+                console.warn('[AntiDebug] 检测到的base无效，已忽略:', detectedBase);
             } else {
-                routerBase = '';
-                hasValidBase = false;
+                // 清理尾部斜杠
+                cleanDetectedBase = detectedBase.endsWith('/') ? detectedBase.slice(0, -1) : detectedBase;
+                if (cleanDetectedBase !== '/' && cleanDetectedBase !== '') {
+                    shouldShowBaseInput = true;
+                }
             }
         }
 
-        // 检测到有效的 routerBase 时显示切换按钮
-        // ✅ 从 localStorage 读取用户偏好（全局）
-        let currentBaseMode = getBaseModePreference();
-        
-        if (hasValidBase) {
-            routeBaseSwitch.style.display = 'flex';
+        // ✅ 自定义base逻辑
+        const customBaseInput = document.getElementById('custom-base-input');
+        const detectedBaseValue = document.querySelector('.detected-base-value');
+        const applyDetectedBaseBtn = document.querySelector('.apply-detected-base-btn');
+        const clearBaseBtn = document.querySelector('.clear-base-btn');
+
+        let currentCustomBase = ''; // 当前用户输入的base
+
+        if (shouldShowBaseInput && routeBaseInputContainer && customBaseInput) {
+            routeBaseInputContainer.style.display = 'flex';
             
-            // 显示检测到的 base 路径（显示原始值，包含#）
-            const baseValue = routeBaseSwitch.querySelector('.base-value');
-            baseValue.textContent = baseContainsHash ? (routerBase + '#') : routerBase;
-            
-            // ✅ 恢复按钮激活状态
-            const baseTabs = routeBaseSwitch.querySelectorAll('.route-base-tab');
-            baseTabs.forEach(tab => {
-                if (tab.dataset.mode === currentBaseMode) {
-                    tab.classList.add('active');
-                } else {
-                    tab.classList.remove('active');
-                }
+            // 显示检测到的base
+            if (detectedBaseValue) {
+                detectedBaseValue.textContent = cleanDetectedBase;
+            }
+
+            // ✅ 从storage读取该域名的自定义base
+            const storageKey = `${hostname}_custom_base`;
+            chrome.storage.local.get([storageKey], (result) => {
+                currentCustomBase = result[storageKey] || '';
+                customBaseInput.value = currentCustomBase;
+                
+                // 初始渲染
+                renderRoutes(allRoutes);
             });
-            
-            // 绑定切换按钮事件
-            baseTabs.forEach(tab => {
-                tab.onclick = () => {
-                    // 更新激活状态
-                    baseTabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
+
+            // 应用检测到的base按钮
+            if (applyDetectedBaseBtn) {
+                applyDetectedBaseBtn.onclick = () => {
+                    customBaseInput.value = cleanDetectedBase;
+                    currentCustomBase = cleanDetectedBase;
                     
-                    // 更新当前模式
-                    currentBaseMode = tab.dataset.mode;
+                    // 保存到storage
+                    chrome.storage.local.set({ [storageKey]: currentCustomBase });
                     
-                    // ✅ 保存到 localStorage（全局）
-                    setBaseModePreference(currentBaseMode);
-                    
-                    // 重新渲染路由列表（考虑搜索框内容）
-                    const searchTerm = vueRouteSearchInput.value.toLowerCase().trim();
-                    if (searchTerm) {
-                        // 如果搜索框有内容，过滤后再渲染
-                        const filteredRoutes = allRoutes.filter(route => {
-                            const path = route.path.toLowerCase();
-                            const name = (route.name || '').toLowerCase();
-                            return path.includes(searchTerm) || name.includes(searchTerm);
-                        });
-                        renderRoutes(filteredRoutes);
-                    } else {
-                        // 搜索框为空，显示全部
-                        renderRoutes(allRoutes);
-                    }
+                    // 重新渲染
+                    renderRoutesWithSearch();
                 };
-            });
+            }
+
+            // 清空按钮
+            if (clearBaseBtn) {
+                clearBaseBtn.onclick = () => {
+                    customBaseInput.value = '';
+                    currentCustomBase = '';
+                    
+                    // 保存到storage
+                    chrome.storage.local.set({ [storageKey]: '' });
+                    
+                    // 重新渲染
+                    renderRoutesWithSearch();
+                };
+            }
+
+            // 输入框实时监听
+            customBaseInput.oninput = (e) => {
+                currentCustomBase = e.target.value.trim();
+                
+                // 保存到storage
+                chrome.storage.local.set({ [storageKey]: currentCustomBase });
+                
+                // 重新渲染（考虑搜索框内容）
+                renderRoutesWithSearch();
+            };
+        } else {
+            // 没有检测到base，直接渲染标准路径
+            renderRoutes(allRoutes);
         }
+
+        // ✅ 渲染路由列表（考虑搜索框）的辅助函数
+        function renderRoutesWithSearch() {
+            const searchTerm = vueRouteSearchInput.value.toLowerCase().trim();
+            if (searchTerm) {
+                const filteredRoutes = allRoutes.filter(route => {
+                    const path = route.path.toLowerCase();
+                    const name = (route.name || '').toLowerCase();
+                    return path.includes(searchTerm) || name.includes(searchTerm);
+                });
+                renderRoutes(filteredRoutes);
+            } else {
+                renderRoutes(allRoutes);
+            }
+        };
     
         // 渲染路由列表的函数
-        const renderRoutes = (routesToShow) => {
+        function renderRoutes(routesToShow) {
             routesListContainer.innerHTML = '';
 
             routesToShow.forEach(route => {
@@ -563,23 +576,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 根据路由模式拼接URL
                 let fullUrl;
                 
-                if (hasValidBase && currentBaseMode === 'with-base') {
-                    // 带基础路径模式
-                    if (baseContainsHash) {
-                        // base包含#：baseUrl + routerBase + # + normalizedPath
-                        fullUrl = baseUrl + routerBase + '#' + normalizedPath;
+                // ✅ 使用用户输入的base（如果有）
+                if (currentCustomBase && currentCustomBase.trim() !== '') {
+                    // 用户自定义了base
+                    const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                    
+                    if (routerMode === 'hash') {
+                        const baseUrlWithoutHash = baseUrl.endsWith('#') ? baseUrl.slice(0, -1) : baseUrl;
+                        fullUrl = cleanUrl(baseUrlWithoutHash + cleanBase + '/#' + normalizedPath);
                     } else {
-                        // base不包含#：根据routerMode拼接
-                        if (routerMode === 'hash') {
-                            fullUrl = baseUrl + '/#' + routerBase + normalizedPath;
-                        } else {
-                            fullUrl = baseUrl + routerBase + normalizedPath;
-                        }
+                        fullUrl = cleanUrl(baseUrl + cleanBase + normalizedPath);
                     }
                 } else {
-                    // 标准路径模式（不带base）
+                    // 标准路径（无base）
                     if (routerMode === 'hash') {
-                        fullUrl = baseUrl + '/#' + normalizedPath;
+                        const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+                        
+                        if (baseUrl.endsWith('#')) {
+                            fullUrl = baseUrl + '/' + cleanPath;
+                        } else if (baseUrl.endsWith('#/')) {
+                            fullUrl = baseUrl + cleanPath;
+                        } else {
+                            fullUrl = baseUrl + '#/' + cleanPath;
+                        }
+                        
+                        fullUrl = cleanUrl(fullUrl);
                     } else {
                         fullUrl = baseUrl + normalizedPath;
                     }
@@ -622,9 +643,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        // 初始渲染所有路由
-        renderRoutes(allRoutes);
-
         // 搜索功能
         vueRouteSearchInput.value = ''; // 清空搜索框
         vueRouteSearchInput.oninput = (e) => {
@@ -637,17 +655,14 @@ document.addEventListener('DOMContentLoaded', () => {
             renderRoutes(filteredRoutes);
         };
 
-        // 批量复制功能 - 根据当前模式复制
+        // 批量复制功能 - 根据当前用户输入的base复制
         copyAllPathsBtn.onclick = () => {
             const allPaths = allRoutes.map(route => {
                 const normalizedPath = normalizePath(route.path);
                 
-                if (hasValidBase && currentBaseMode === 'with-base') {
-                    if (baseContainsHash) {
-                        return routerBase + '#' + normalizedPath;
-                    } else {
-                        return routerBase + normalizedPath;
-                    }
+                if (currentCustomBase && currentCustomBase.trim() !== '') {
+                    const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                    return cleanBase + normalizedPath;
                 }
                 return normalizedPath;
             }).join('\n');
@@ -668,23 +683,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const normalizedPath = normalizePath(route.path);
                 let fullUrl;
                 
-                if (hasValidBase && currentBaseMode === 'with-base') {
-                    // 带基础路径模式
-                    if (baseContainsHash) {
-                        // base包含#：baseUrl + routerBase + # + normalizedPath
-                        fullUrl = baseUrl + routerBase + '#' + normalizedPath;
+                if (currentCustomBase && currentCustomBase.trim() !== '') {
+                    const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                    
+                    if (routerMode === 'hash') {
+                        const baseUrlWithoutHash = baseUrl.endsWith('#') ? baseUrl.slice(0, -1) : baseUrl;
+                        fullUrl = cleanUrl(baseUrlWithoutHash + cleanBase + '/#' + normalizedPath);
                     } else {
-                        // base不包含#：根据routerMode拼接
-                        if (routerMode === 'hash') {
-                            fullUrl = baseUrl + '/#' + routerBase + normalizedPath;
-                        } else {
-                            fullUrl = baseUrl + routerBase + normalizedPath;
-                        }
+                        fullUrl = cleanUrl(baseUrl + cleanBase + normalizedPath);
                     }
                 } else {
-                    // 标准路径模式（不带base）
                     if (routerMode === 'hash') {
-                        fullUrl = baseUrl + '/#' + normalizedPath;
+                        const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+                        
+                        if (baseUrl.endsWith('#')) {
+                            fullUrl = baseUrl + '/' + cleanPath;
+                        } else if (baseUrl.endsWith('#/')) {
+                            fullUrl = baseUrl + cleanPath;
+                        } else {
+                            fullUrl = baseUrl + '#/' + cleanPath;
+                        }
+                        
+                        fullUrl = cleanUrl(fullUrl);
                     } else {
                         fullUrl = baseUrl + normalizedPath;
                     }
