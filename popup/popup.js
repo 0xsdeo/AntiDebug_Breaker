@@ -570,16 +570,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         fullUrl = baseUrl + routerBase + '#' + normalizedPath;
                     } else {
                         // base不包含#：根据routerMode拼接
+                        // 如果routerBase为 a.html 拼接时会变成http://a.coma.html 判断 routerBase 以 / 开头 （如果删除第447行的判断就不需要这个了）
+                        const cleanRouterBase = routerBase.startsWith('/') ? routerBase : '/' + routerBase;
                         if (routerMode === 'hash') {
-                            fullUrl = baseUrl + '/#' + routerBase + normalizedPath;
+                            fullUrl = baseUrl + cleanRouterBase + '#' + normalizedPath;
                         } else {
-                            fullUrl = baseUrl + routerBase + normalizedPath;
+                            fullUrl = baseUrl + cleanRouterBase + normalizedPath;
                         }
                     }
                 } else {
                     // 标准路径模式（不带base）
                     if (routerMode === 'hash') {
-                        fullUrl = baseUrl + '/#' + normalizedPath;
+                        // 删除/ 避免 x.com/a.html#/ 错误解析成 x.com/a.html/#/
+                        fullUrl = baseUrl + '#' + normalizedPath;
                     } else {
                         fullUrl = baseUrl + normalizedPath;
                     }
@@ -675,16 +678,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         fullUrl = baseUrl + routerBase + '#' + normalizedPath;
                     } else {
                         // base不包含#：根据routerMode拼接
+                        // 如果routerBase为 a.html 拼接时会变成http://a.coma.html 判断 routerBase 以 / 开头（如果删除第447行的判断就不需要这个了）
+                        const cleanRouterBase = routerBase.startsWith('/') ? routerBase : '/' + routerBase;
                         if (routerMode === 'hash') {
-                            fullUrl = baseUrl + '/#' + routerBase + normalizedPath;
+                            fullUrl = baseUrl + cleanRouterBase + '#' + normalizedPath;
                         } else {
-                            fullUrl = baseUrl + routerBase + normalizedPath;
+                            fullUrl = baseUrl + cleanRouterBase + normalizedPath;
                         }
                     }
                 } else {
                     // 标准路径模式（不带base）
                     if (routerMode === 'hash') {
-                        fullUrl = baseUrl + '/#' + normalizedPath;
+                        // 删除/ 避免 x.com/a.html#/ 错误解析成 x.com/a.html/#/
+                        fullUrl = baseUrl + '#' + normalizedPath;
                     } else {
                         fullUrl = baseUrl + normalizedPath;
                     }
