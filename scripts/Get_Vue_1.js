@@ -37,14 +37,39 @@
     const validInstancesCache = []; // 缓存所有找到的有效实例
     let hasOutputResult = false; // 标记是否已经输出过结果
 
-    // 发送数据到插件
-    function sendToExtension(data) {
+// 发送数据到插件
+function sendToExtension(data) {
+    try {
         window.postMessage({
             type: 'VUE_ROUTER_DATA',
             source: 'get-vue-script',
             data: data
         }, '*');
+    } catch (error) {
+        // ✅ 捕获 DataCloneError
+        if (error.name === 'DataCloneError' || error.message.includes('could not be cloned')) {
+            console.error('[AntiDebug] 路由数据包含不可序列化的对象（如Symbol），无法传递给插件');
+            console.error('[AntiDebug] 请查看控制台输出的路由列表');
+            
+            // 发送错误消息给插件
+            try {
+                window.postMessage({
+                    type: 'VUE_ROUTER_DATA',
+                    source: 'get-vue-script',
+                    data: {
+                        serializationError: true,
+                        errorType: 'DataCloneError',
+                        errorMessage: '路由数据包含不可序列化的对象（如Symbol），无法传递给插件，请查看控制台输出'
+                    }
+                }, '*');
+            } catch (e) {
+                console.error('[AntiDebug] 发送错误消息也失败:', e);
+            }
+        } else {
+            console.error('[AntiDebug] postMessage发送失败:', error);
+        }
     }
+}
 
     // 监听来自插件的请求
     window.addEventListener('message', (event) => {

@@ -418,6 +418,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // ✅ 新增：序列化错误处理
+        if (vueRouterInfo.serializationError) {
+            routesListContainer.innerHTML = '<div class="empty-state">❌ 路由数据传输失败，请查看控制台（F12）输出的路由信息！</div>';
+            vueVersionDisplay.style.display = 'none';
+            return;
+        }
+
         // 显示Vue版本和路由信息
         if (vueRouterInfo.vueVersion) {
             vueVersionDisplay.style.display = 'flex';
