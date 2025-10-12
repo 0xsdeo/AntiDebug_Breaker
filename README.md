@@ -92,6 +92,12 @@ outerWidth：1400
 
 本脚本为CC11001100师傅所作，脚本原地址：`https://github.com/JSREI/page-redirect-code-location-hook`，用于阻断页面跳转，留在当前页面分析。
 
+- Hook CryptoAES && Hook CryptoRSA
+
+本脚本为KeeCTh师傅所作，脚本原地址：`https://github.com/keecth/FakeCryptoJS`。
+
+CryptoJS常规加解密自吐密钥、加解密方式，快速定位加解密位置(无视混淆)。SRC和常规渗透神器。
+
 ### Vue
 
 - 获取路由
@@ -116,7 +122,7 @@ outerWidth：1400
 
 ## 致谢
 
-CC11001100、Dexter、<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>
+CC11001100、Dexter、d1sbb、<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
 
 ## 交流群
 
