@@ -66,6 +66,12 @@
     "category": "antidebug"
   },
   {
+    "id": "hook_Promise",
+    "name": "Hook Promise",
+    "description": "Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
+    "category": "antidebug"
+  },
+  {
     "id": "Get_Vue_0",
     "name": "获取路由",
     "description": "获取已加载的路由并显示在下方的表格中，注意未加载的路由不会被获取到，如果长时间未获取到可能是由于目标站点未使用vue router，也可能是因为目标站点未加载完毕。",
