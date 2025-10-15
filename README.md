@@ -4,6 +4,12 @@
 
 本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS库</a>所写的google插件，将致力于绕过前端各种反调试操作以及Vue信息收集。
 
+教学视频：
+
+反调试：https://www.bilibili.com/video/BV1gQ4mzMEA4
+
+Vue：https://www.bilibili.com/video/BV12148z7EnP
+
 ## 插件安装
 
 将源码下载到本地后打开chrome，访问`chrome://extensions/`，点击左上角的`加载未打包的扩展程序`，然后选中源码文件夹即可：
