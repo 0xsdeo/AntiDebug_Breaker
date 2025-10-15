@@ -104,6 +104,12 @@ outerWidth：1400
 
 CryptoJS常规加解密自吐密钥、加解密方式，快速定位加解密位置(无视混淆)。SRC和常规渗透神器。
 
+- Hook Promise
+
+本脚本为Yosan师傅所作。
+
+Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。
+
 ### Vue
 
 - 获取路由
@@ -128,7 +134,7 @@ CryptoJS常规加解密自吐密钥、加解密方式，快速定位加解密位
 
 ## 致谢
 
-CC11001100、Dexter、d1sbb、<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
+CC11001100、Dexter、d1sbb、Yosan、<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
 
 ## 交流群
 
