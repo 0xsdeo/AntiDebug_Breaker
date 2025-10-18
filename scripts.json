@@ -54,9 +54,9 @@
     "category": "antidebug"
   },
   {
-    "id": "Hook CryptoAES",
-    "name": "Hook CryptoAES",
-    "description": "Hook AES，将在控制台打印密钥，可快速定位加解密位置。",
+    "id": "Hook_CryptoJS_对称加密",
+    "name": "Hook CryptoJS 对称加密",
+    "description": "Hook CryptoJS当中的所有对称加密算法，<div style=\"font-size: 0.9em;\">例如AES、DES等。</div>",
     "category": "antidebug"
   },
   {
