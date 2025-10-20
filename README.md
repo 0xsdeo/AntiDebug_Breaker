@@ -104,12 +104,6 @@ outerWidth：1400
 
 Hook CryptoJS当中的所有对称加密算法，例如AES、DES等。
 
-- Hook CryptoRSA
-
-本脚本为KeeCTh师傅所作，脚本原地址：`https://github.com/keecth/FakeCryptoJS`。
-
-CryptoJS常规加解密自吐密钥、加解密方式，快速定位加解密位置(无视混淆)。SRC和常规渗透神器。
-
 - Hook Promise
 
 本脚本为Yosan师傅所作。
