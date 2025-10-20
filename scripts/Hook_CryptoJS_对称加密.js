@@ -81,14 +81,33 @@
     let temp_apply = Function.prototype.apply;
 
     Function.prototype.apply = function () {
-        if (arguments.length === 2 && arguments[1] && typeof arguments[1] === 'object' && arguments[1].length === 1 && hasEncryptProp(arguments[1][0])) {
+        if (arguments.length === 2 && arguments[0] && arguments[1] && typeof arguments[1] === 'object' && arguments[1].length === 1 && hasEncryptProp(arguments[1][0])) {
             if (Object.hasOwn(arguments[0], "$super") && Object.hasOwn(arguments[0], "init")) {
-                if (this.toString().indexOf('function()') !== -1) {
+                if (this.toString().indexOf('function()') !== -1 || /^\s*function(?:\s*\*)?\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{/.test(this.toString())) {
                     console.log(...arguments);
-                    console.log("加密后的密文：", arguments[0].$super.toString.call(arguments[1][0]));
-                    console.log("加密Hex key：", arguments[1][0]["key"].toString());
-                    if (arguments[1][0]["iv"]) {
-                        console.log("加密Hex iv：", arguments[1][0]["iv"].toString());
+
+                    let encrypt_text = arguments[0].$super.toString.call(arguments[1][0]);
+                    if (encrypt_text !== "[object Object]") {
+                        console.log("加密后的密文：", encrypt_text);
+                    } else {
+                        console.log("加密后的密文：由于toString方法并未获取到，请自行使用上方打印的对象进行toString调用输出密文。");
+                    }
+
+                    let key = arguments[1][0]["key"].toString();
+                    if (key !== "[object Object]") {
+                        console.log("加密Hex key：", key);
+                    } else {
+                        console.log("加密Hex key：由于toString方法并未获取到，请自行使用上方打印的对象进行toString调用输出key。");
+                    }
+
+                    let iv = arguments[1][0]["iv"];
+
+                    if (iv) {
+                        if (iv.toString() !== "[object Object]") {
+                            console.log("加密Hex iv：", iv.toString());
+                        } else {
+                            console.log("加密Hex iv：由于toString方法并未获取到，请自行使用上方打印的对象进行toString调用输出iv。");
+                        }
                     } else {
                         console.log("加密时未用到iv")
                     }
@@ -104,16 +123,29 @@
                     console.log("%c---------------------------------------------------------------------", "color: green;");
                 }
             }
-        } else if (arguments.length === 2 && arguments[1] && typeof arguments[1] === 'object' && arguments[1].length === 3 && hasDecryptProp(arguments[1][1])) {
+        } else if (arguments.length === 2 && arguments[0] && arguments[1] && typeof arguments[1] === 'object' && arguments[1].length === 3 && hasDecryptProp(arguments[1][1])) {
             if (Object.hasOwn(arguments[0], "$super") && Object.hasOwn(arguments[0], "init")) {
                 if (this.toString().indexOf('function()') === -1 && arguments[1][0] === 2) {
                     console.log(...arguments);
-                    console.log("解密Hex key：", arguments[1][1].toString());
+
+                    let key = arguments[1][1].toString();
+                    if (key !== "[object Object]") {
+                        console.log("解密Hex key：", key);
+                    } else {
+                        console.log("解密Hex key：由于toString方法并未获取到，请自行使用上方打印的对象进行toString调用输出key。");
+                    }
+
                     if (Object.hasOwn(arguments[1][2], "iv") && arguments[1][2]["iv"]) {
-                        console.log("解密Hex iv：", arguments[1][2]["iv"].toString());
+                        let iv = arguments[1][2]["iv"].toString();
+                        if (iv !== "[object Object]") {
+                            console.log("解密Hex iv：", iv);
+                        } else {
+                            console.log("解密Hex iv：由于toString方法并未获取到，请自行使用上方打印的对象进行toString调用输出iv。");
+                        }
                     } else {
                         console.log("解密时未用到iv")
                     }
+
                     if (Object.hasOwn(arguments[1][2], "padding") && arguments[1][2]["padding"]) {
                         console.log("解密时的填充模式：", arguments[1][2]["padding"]);
                     }

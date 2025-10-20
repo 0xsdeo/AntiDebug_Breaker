@@ -60,12 +60,6 @@
     "category": "antidebug"
   },
   {
-    "id": "Hook CryptoRSA",
-    "name": "Hook CryptoRSA",
-    "description": "Hook RSA，将在控制台打印密钥，可快速定位加解密位置。",
-    "category": "antidebug"
-  },
-  {
     "id": "hook_Promise",
     "name": "Hook Promise",
     "description": "Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
