@@ -224,6 +224,7 @@ h1 {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-height: var(--card-height);  /* ✅ 改为 min-height */
     height: var(--card-height);
     border: 1px solid var(--border);
     position: relative;
@@ -236,6 +237,15 @@ h1 {
     transform: translateY(-3px);
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--primary);
     z-index: 5;
+    height: auto;  /* ✅ 悬停时自动高度 */
+    overflow: visible;  /* ✅ 允许内容溢出 */
+}
+
+/* ✅ 悬停时显示完整描述 */
+.script-item:hover .script-description {
+    -webkit-line-clamp: unset;
+    display: block;
+    overflow: visible;
 }
 
 .script-content {

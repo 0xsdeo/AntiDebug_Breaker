@@ -225,9 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             scriptItem.className = `script-item ${isEnabled ? 'active' : ''}`;
 
             let description = script.description;
-            if (description.length > 120) {
-                description = description.substring(0, 120) + '...';
-            }
 
             scriptItem.innerHTML = `
                 <div class="script-content">

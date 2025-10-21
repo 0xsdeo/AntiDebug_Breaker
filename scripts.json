@@ -56,7 +56,7 @@
   {
     "id": "Hook_CryptoJS_对称加密",
     "name": "Hook CryptoJS 对称加密",
-    "description": "Hook CryptoJS当中的所有对称加密算法，<div style=\"font-size: 0.9em;\">例如AES、DES等。</div>",
+    "description": "Hook CryptoJS当中的所有对称加密算法，例如AES、DES等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的对称加密算法。",
     "category": "antidebug"
   },
   {
