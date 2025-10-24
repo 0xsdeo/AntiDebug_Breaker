@@ -102,9 +102,9 @@ outerWidth：1400
 
 本脚本为CC11001100师傅所作，脚本原地址：`https://github.com/JSREI/page-redirect-code-location-hook`，用于阻断页面跳转，留在当前页面分析。
 
-- Hook CryptoJS 对称加密
+- Hook CryptoJS
 
-Hook CryptoJS当中的所有对称加密算法，例如AES、DES等。
+Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、SHA等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的加密算法，如果确认使用的是CryptoJS库进行的加密而无法打印可联系我。
 
 - Hook Promise
 
