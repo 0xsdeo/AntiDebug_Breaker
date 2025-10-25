@@ -11,7 +11,7 @@
 
 (function () {
     'use strict';
-    const readonlyProps = ['log', 'warn', 'error', 'info', 'debug', 'trace', 'groupCollapsed', 'groupEnd'];
+    const readonlyProps = ['log', 'trace', 'groupCollapsed', 'groupEnd'];
     // 代理console对象，实现只读属性，防止方法被重写
     const readonlyConsole = new Proxy(console, {
         set(t, k, v, r) {
@@ -30,7 +30,7 @@
     // 当然如果遇到属性描述符检测，这两种写法都一样会被检测出来，所以综合考虑选择get、set的写法
     Object.defineProperty(window, 'console', {
         configurable: true,
-        enmuerable: false,
+        enumerable: false,
         get: function () {
             return readonlyConsole;
         },
