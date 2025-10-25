@@ -106,6 +106,10 @@ outerWidth：1400
 
 Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、SHA等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的加密算法，如果确认使用的是CryptoJS库进行的加密而无法打印可联系我。
 
+- Hook JSEncrypt RSA
+
+Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。
+
 - Hook Promise
 
 本脚本为Yosan师傅所作。
