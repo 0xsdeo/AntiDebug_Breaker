@@ -39,17 +39,11 @@ Hook CryptoJS对称加密 快速出key、iv、mode、padding：https://www.bilib
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/3xagT-PXCgGrw9YiaCe__g">JS逆向系列14-Bypass Debugger</a>
 
-- hook_log v0.1
+- hook log
 
-该脚本用于防止js重写log方法，如本脚本不生效可切换至v0.2脚本。
+本脚本为Yosan师傅所作。
 
-脚本原理：<a href="https://mp.weixin.qq.com/s/l6_m3x3TbKDma_eexxx-Zw">JS逆向系列13-反调试之console.log</a>
-
-- hook_log v0.2
-
-本脚本功能同上，如这两个脚本均防止不了js重写log方法，可联系我本人。
-
-注：**这两个脚本不能混用。**
+本脚本用于防止js重写console.log等方法。
 
 - Hook table
 

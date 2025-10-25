@@ -6,20 +6,8 @@
     "category": "antidebug"
   },
   {
-    "id": "hook_log v0.1",
-    "name": "hook_log v0.1",
-    "description": "防止js重写log方法，该版本不生效可以尝试使用v0.2版本。",
-    "category": "antidebug"
-  },
-  {
-    "id": "hook_log v0.2",
-    "name": "hook_log v0.2",
-    "description": "防止js重写log方法 注：v0.1和v0.2脚本不能混用",
-    "category": "antidebug"
-  },
-  {
     "id": "hook_log",
-    "name": "hook_log",
+    "name": "hook log",
     "description": "防止js重写console.log等方法",
     "category": "antidebug"
   },
@@ -60,6 +48,12 @@
     "category": "antidebug"
   },
   {
+    "id": "hook_Promise",
+    "name": "Hook Promise",
+    "description": "Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
+    "category": "antidebug"
+  },
+  {
     "id": "Hook_CryptoJS",
     "name": "Hook CryptoJS",
     "description": "Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、SHA等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的加密算法，如果确认使用的是CryptoJS库进行的加密而无法打印可联系我。",
@@ -69,12 +63,6 @@
     "id": "Hook_JSEncrypt",
     "name": "Hook JSEncrypt RSA",
     "description": "Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。",
-    "category": "antidebug"
-  },
-  {
-    "id": "hook_Promise",
-    "name": "Hook Promise",
-    "description": "Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
     "category": "antidebug"
   },
   {
