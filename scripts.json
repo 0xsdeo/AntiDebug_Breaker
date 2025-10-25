@@ -18,6 +18,12 @@
     "category": "antidebug"
   },
   {
+    "id": "hook_log",
+    "name": "hook_log",
+    "description": "防止js重写console.log等方法",
+    "category": "antidebug"
+  },
+  {
     "id": "hook_table",
     "name": "Hook table",
     "description": "绕过js检测运行时间差来实现反调试",
