@@ -489,7 +489,7 @@ function sendToExtension(data) {
     // 后备轮询重试机制
     function startPollingRetry() {
         let delay = 100;
-        let detectRemainingTries = 5;
+        let detectRemainingTries = 12;
 
         function executeDetection() {
             // 尝试获取（会自动输出新发现的Router）
