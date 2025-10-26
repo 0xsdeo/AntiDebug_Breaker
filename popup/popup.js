@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 未找到Router
         if (vueRouterInfo.notFound) {
-            routesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 Vue Router（可尝试重新打开插件）<br /><br />若本插件未输出路由，而其他插件可以，说明当节点未加载完毕注入的脚本就已经扫描完毕了，建议将进入可获取到路由的页面的时间控制在6分50秒以内。</div>';
+            routesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 Vue Router（可尝试重新打开插件）</div>';
             vueVersionDisplay.style.display = 'none';
             return;
         }
