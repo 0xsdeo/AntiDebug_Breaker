@@ -83,8 +83,8 @@
     Function.prototype.apply = function () {
         // CryptoJS 对称加密
         if (arguments.length === 2 && arguments[0] && arguments[1] && typeof arguments[1] === 'object' && arguments[1].length === 1 && hasEncryptProp(arguments[1][0])) {
-            if (Object.hasOwn(arguments[0], "$super") && Object.hasOwn(arguments[0], "init")) {
-                if (this.toString().indexOf('function()') !== -1 || /^\s*function(?:\s*\*)?\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{/.test(this.toString())) {
+            if (Object.hasOwn(arguments[0], "$super") && Object.hasOwn(arguments[1], "callee")) {
+                if (this.toString().indexOf('function()') !== -1 || /^\s*function(?:\s*\*)?\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{/.test(this.toString()) || /^\s*function\s*\(\s*\)\s*\{/.test(this.toString())) {
                     console.log(...arguments);
 
                     let encrypt_text = arguments[0].$super.toString.call(arguments[1][0]);
@@ -122,11 +122,14 @@
                         console.log("对称加密时的密钥长度：", get_sigBytes(arguments[1][0]["key"]["sigBytes"]));
                     }
                     console.log("%c---------------------------------------------------------------------", "color: green;");
+                } else {
+                    console.log(...arguments);
+                    console.log("由于一些必要因素导致未能输出key、iv等加密参数，请自行使用上方打印的对象进行toString调用输出key、iv等加密参数。");
                 }
             }
             // CryptoJS 对称解密
         } else if (arguments.length === 2 && arguments[0] && arguments[1] && typeof arguments[1] === 'object' && arguments[1].length === 3 && hasDecryptProp(arguments[1][1])) {
-            if (Object.hasOwn(arguments[0], "$super") && Object.hasOwn(arguments[0], "init")) {
+            if (Object.hasOwn(arguments[0], "$super") && Object.hasOwn(arguments[1], "callee")) {
                 if (this.toString().indexOf('function()') === -1 && arguments[1][0] === 2) {
                     console.log(...arguments);
 
