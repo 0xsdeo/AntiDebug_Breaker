@@ -42,15 +42,15 @@
     "category": "antidebug"
   },
   {
-    "id": "location_href",
-    "name": "页面跳转JS代码定位通杀方案",
-    "description": "阻断页面跳转，留在当前页面分析",
-    "category": "antidebug"
-  },
-  {
     "id": "hook_Promise",
     "name": "Hook Promise",
     "description": "Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
+    "category": "antidebug"
+  },
+  {
+    "id": "location_href",
+    "name": "页面跳转JS代码定位通杀方案",
+    "description": "当网站进行跳转时，将会触发本脚本的debugger，从而可以快速定位到跳转的JS代码位置，进而实现手动替换绕过跳转。注：1.使用本脚本时必须开启F12。2.开启本脚本不代表可以清除跳转代码，只是起一个定位的作用。",
     "category": "antidebug"
   },
   {
