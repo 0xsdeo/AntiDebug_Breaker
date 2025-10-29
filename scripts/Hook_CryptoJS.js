@@ -125,6 +125,7 @@
                 } else {
                     console.log(...arguments);
                     console.log("由于一些必要因素导致未能输出key、iv等加密参数，请自行使用上方打印的对象进行toString调用输出key、iv等加密参数。");
+                    console.log("%c---------------------------------------------------------------------", "color: green;");
                 }
             }
             // CryptoJS 对称解密
