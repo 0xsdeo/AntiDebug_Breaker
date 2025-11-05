@@ -83,5 +83,11 @@
     "name": "清除路由守卫",
     "description": "仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载等其他操作，此时可以考虑关闭本脚本并亲自替换js逻辑实现绕过。",
     "category": "vue"
+  },
+  {
+    "id": "detectorExec",
+    "name": "激活Vue Devtools",
+    "description": "当开启本脚本后将激活Vue Devtools。Vue2需开启Vue.js devtools(v5)，Vue3需开启Vue.js devtools，可自行去谷歌插件商店安装上述两个插件。注：两个插件不能同时开。",
+    "category": "vue"
   }
 ]
