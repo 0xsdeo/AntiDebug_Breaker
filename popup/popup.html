@@ -12,6 +12,20 @@
     <div class="container">
         <header>
             <div class="title-container">
+                <!-- 全局/标准模式切换开关 -->
+                <div class="mode-switch-container">
+                    <label class="mode-switch">
+                        <input type="checkbox" id="global-mode-toggle">
+                        <span class="mode-slider"></span>
+                    </label>
+                    <span class="mode-text">标准模式</span>
+                    <div class="mode-tooltip">
+                        开启标准模式/全局模式<br><br>
+                        <strong>标准模式：</strong>插件默认模式，当勾选脚本并刷新网站后，脚本仅会注入到当前网站。<br><br>
+                        <strong>全局模式：</strong>当开启全局模式后，勾选的脚本将注入到每个网站中。
+                    </div>
+                </div>
+                
                 <h1>AntiDebug</h1>
                 <div class="breaker">Breaker</div>
                 <a href="https://github.com/0xsdeo/AntiDebug_Breaker" target="_blank" class="github-link">

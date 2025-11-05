@@ -34,6 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyAllPathsBtn = document.querySelector('.copy-all-paths-btn');
     const copyAllUrlsBtn = document.querySelector('.copy-all-urls-btn');
 
+    // 🆕 全局模式相关DOM元素
+    const globalModeToggle = document.getElementById('global-mode-toggle');
+    const modeText = document.querySelector('.mode-text');
+
     let currentTab = 'antidebug'; // 当前选中的标签
     let allScripts = []; // 所有脚本数据
     let enabledScripts = []; // 启用的脚本
@@ -41,6 +45,123 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTab_obj = null;
     let cachedVueDataList = []; // 在popup中缓存所有Vue实例数据（改为数组）
     let currentInstanceIndex = 0; // 当前选中的实例索引
+
+    // 🆕 全局模式状态管理
+    let isGlobalMode = false; // 当前是否为全局模式
+    let globalEnabledScripts = []; // 全局模式下启用的脚本
+
+    // 🆕 全局模式存储键名
+    const GLOBAL_MODE_KEY = 'antidebug_mode';
+    const GLOBAL_SCRIPTS_KEY = 'global_scripts';
+
+    // 🆕 初始化全局模式状态
+    function initializeGlobalMode() {
+        chrome.storage.local.get([GLOBAL_MODE_KEY, GLOBAL_SCRIPTS_KEY], (result) => {
+            // 获取模式状态，默认为标准模式
+            const mode = result[GLOBAL_MODE_KEY] || 'standard';
+            isGlobalMode = (mode === 'global');
+            
+            // 获取全局脚本列表，默认为空数组
+            globalEnabledScripts = result[GLOBAL_SCRIPTS_KEY] || [];
+            
+            // 如果没有模式键值，创建默认配置
+            if (!result[GLOBAL_MODE_KEY]) {
+                chrome.storage.local.set({
+                    [GLOBAL_MODE_KEY]: 'standard',
+                    [GLOBAL_SCRIPTS_KEY]: []
+                });
+            }
+            
+            // 更新UI状态
+            updateModeUI();
+            
+            // 如果是全局模式，使用全局脚本列表
+            if (isGlobalMode) {
+                enabledScripts = [...globalEnabledScripts];
+            }
+        });
+    }
+
+    // 🆕 更新模式UI显示
+    function updateModeUI() {
+        globalModeToggle.checked = isGlobalMode;
+        modeText.textContent = isGlobalMode ? '全局模式' : '标准模式';
+    }
+
+    // 🆕 模式切换处理（修复bug：添加旧模式脚本清理）
+    function handleModeToggle(newGlobalMode) {
+        const oldGlobalMode = isGlobalMode;
+        isGlobalMode = newGlobalMode;
+        
+        // 保存模式状态
+        const mode = isGlobalMode ? 'global' : 'standard';
+        chrome.storage.local.set({ [GLOBAL_MODE_KEY]: mode });
+        
+        // 🔧 关键修复：先清理旧模式的脚本注册
+        if (oldGlobalMode !== newGlobalMode) {
+            clearOldModeScripts(oldGlobalMode);
+        }
+        
+        if (isGlobalMode) {
+            // 切换到全局模式
+            enabledScripts = [...globalEnabledScripts];
+        } else {
+            // 切换到标准模式
+            // 检查当前URL是否为web网站
+            if (currentTab_obj && currentTab_obj.url && 
+                (currentTab_obj.url.startsWith('http://') || currentTab_obj.url.startsWith('https://'))) {
+                
+                // 读取当前域名的脚本配置
+                chrome.storage.local.get([hostname], (result) => {
+                    if (result[hostname]) {
+                        // 存在配置，使用该配置
+                        enabledScripts = result[hostname] || [];
+                    } else {
+                        // 不存在配置，创建空配置
+                        enabledScripts = [];
+                        chrome.storage.local.set({ [hostname]: [] });
+                    }
+                    
+                    // 更新UI显示和脚本注册
+                    updateModeUI();
+                    renderCurrentTab();
+                    updateScriptRegistration();
+                });
+                return;
+            } else {
+                // 不是web网站，清空脚本
+                enabledScripts = [];
+            }
+        }
+        
+        // 更新UI显示和脚本注册
+        updateModeUI();
+        renderCurrentTab();
+        updateScriptRegistration();
+    }
+
+    // 🔧 新增：清理旧模式脚本的函数
+    function clearOldModeScripts(wasGlobalMode) {
+        chrome.runtime.sendMessage({
+            type: 'clear_mode_scripts',
+            clearGlobalMode: wasGlobalMode
+        });
+    }
+
+    // 🆕 检查是否为有效的web网站
+    function isValidWebsite(url) {
+        return url && (url.startsWith('http://') || url.startsWith('https://'));
+    }
+
+    // 🆕 更新脚本注册（通知background）
+    function updateScriptRegistration() {
+        chrome.runtime.sendMessage({
+            type: 'update_scripts_registration',
+            hostname: isGlobalMode ? '*' : hostname,
+            enabledScripts: enabledScripts,
+            isGlobalMode: isGlobalMode
+        });
+    }
 
     // 监听来自 background 的 Vue Router 数据更新
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -105,54 +226,103 @@ document.addEventListener('DOMContentLoaded', () => {
         hostname = new URL(tab.url).hostname;
         currentTab_obj = tab;
 
+        // 🆕 初始化全局模式
+        initializeGlobalMode();
+
         // 加载脚本元数据
         fetch(chrome.runtime.getURL('scripts.json'))
             .then(response => response.json())
             .then(scripts => {
                 allScripts = scripts;
 
-                // 获取该域名下的启用状态
-                chrome.storage.local.get([hostname, 'last_active_tab'], (result) => {
-                    enabledScripts = result[hostname] || [];
+                // 🆕 根据模式获取启用状态
+                const getInitialScripts = () => {
+                    if (isGlobalMode) {
+                        return globalEnabledScripts;
+                    } else {
+                        // 标准模式：获取该域名下的启用状态
+                        chrome.storage.local.get([hostname, 'last_active_tab'], (result) => {
+                            enabledScripts = result[hostname] || [];
 
-                    // 恢复上次打开的板块
-                    if (result.last_active_tab) {
-                        currentTab = result.last_active_tab;
-                        // 更新UI中的按钮状态
-                        tabBtns.forEach(b => {
-                            if (b.dataset.tab === currentTab) {
-                                b.classList.add('active');
-                            } else {
-                                b.classList.remove('active');
+                            // 恢复上次打开的板块
+                            if (result.last_active_tab) {
+                                currentTab = result.last_active_tab;
+                                // 更新UI中的按钮状态
+                                tabBtns.forEach(b => {
+                                    if (b.dataset.tab === currentTab) {
+                                        b.classList.add('active');
+                                    } else {
+                                        b.classList.remove('active');
+                                    }
+                                });
+                            }
+
+                            renderCurrentTab();
+
+                            // 检查是否启用了 Get_Vue_0 或 Get_Vue_1 脚本
+                            const hasVueScript = enabledScripts.includes('Get_Vue_0') ||
+                                enabledScripts.includes('Get_Vue_1');
+
+                            // 如果启用了Vue脚本，立即请求数据
+                            if (hasVueScript) {
+                                requestVueRouterData();
                             }
                         });
+                        return [];
                     }
+                };
 
-                    renderCurrentTab();
-
-                    // 检查是否启用了 Get_Vue_0 或 Get_Vue_1 脚本
-                    const hasVueScript = enabledScripts.includes('Get_Vue_0') ||
-                        enabledScripts.includes('Get_Vue_1');
-
-                    // 如果启用了Vue脚本，立即请求数据
-                    if (hasVueScript) {
-                        requestVueRouterData();
+                // 延迟获取脚本，确保模式状态已初始化
+                setTimeout(() => {
+                    if (isGlobalMode) {
+                        // 🔧 修复：全局模式下也需要恢复上次打开的板块
+                        chrome.storage.local.get(['last_active_tab'], (result) => {
+                            // 恢复上次打开的板块
+                            if (result.last_active_tab) {
+                                currentTab = result.last_active_tab;
+                                // 更新UI中的按钮状态
+                                tabBtns.forEach(b => {
+                                    if (b.dataset.tab === currentTab) {
+                                        b.classList.add('active');
+                                    } else {
+                                        b.classList.remove('active');
+                                    }
+                                });
+                            }
+                            
+                            enabledScripts = [...globalEnabledScripts];
+                            renderCurrentTab();
+                            
+                            // 检查Vue脚本
+                            const hasVueScript = enabledScripts.includes('Get_Vue_0') ||
+                                enabledScripts.includes('Get_Vue_1');
+                            if (hasVueScript) {
+                                requestVueRouterData();
+                            }
+                        });
+                    } else {
+                        getInitialScripts();
                     }
+                }, 100);
 
-                    // 搜索功能
-                    searchInput.addEventListener('input', (e) => {
-                        const searchTerm = e.target.value.toLowerCase();
-                        const filteredScripts = getScriptsForCurrentTab().filter(script =>
-                            script.name.toLowerCase().includes(searchTerm) ||
-                            script.description.toLowerCase().includes(searchTerm)
-                        );
+                // 搜索功能
+                searchInput.addEventListener('input', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const filteredScripts = getScriptsForCurrentTab().filter(script =>
+                        script.name.toLowerCase().includes(searchTerm) ||
+                        script.description.toLowerCase().includes(searchTerm)
+                    );
 
-                        if (currentTab === 'antidebug') {
-                            renderAntiDebugScripts(filteredScripts);
-                        }
-                    });
+                    if (currentTab === 'antidebug') {
+                        renderAntiDebugScripts(filteredScripts);
+                    }
                 });
             });
+    });
+
+    // 🆕 全局模式开关事件监听
+    globalModeToggle.addEventListener('change', (e) => {
+        handleModeToggle(e.target.checked);
     });
 
     // 标签切换事件
@@ -729,95 +899,116 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 处理反调试脚本开关切换
+    // 🆕 处理反调试脚本开关切换（支持全局模式）
     function handleScriptToggle(scriptId, isChecked, scriptItem) {
         if (typeof scriptId !== 'string' || !scriptId.trim()) {
             console.error('Invalid script ID in change event:', scriptId);
             return;
         }
 
-        chrome.storage.local.get([hostname], (result) => {
-            let enabled = result[hostname] || [];
+        if (isChecked) {
+            if (!enabledScripts.includes(scriptId)) {
+                enabledScripts.push(scriptId);
+                scriptItem.classList.add('active');
+            }
+        } else {
+            enabledScripts = enabledScripts.filter(id => id !== scriptId);
+            scriptItem.classList.remove('active');
+        }
 
+        updateStorage(enabledScripts);
+    }
+
+    // 🆕 处理Vue脚本开关切换（含父子逻辑，支持全局模式）
+    function handleVueScriptToggle(script, isChecked) {
+        // 如果是父脚本
+        if (!script.parentScript) {
             if (isChecked) {
-                if (!enabled.includes(scriptId)) {
-                    enabled.push(scriptId);
-                    scriptItem.classList.add('active');
+                // 开启父脚本：添加父脚本ID
+                if (!enabledScripts.includes(script.id)) {
+                    enabledScripts.push(script.id);
                 }
             } else {
-                enabled = enabled.filter(id => id !== scriptId);
-                scriptItem.classList.remove('active');
+                // 关闭父脚本：同时移除父脚本和所有子脚本
+                const childScripts = allScripts.filter(s => s.parentScript === script.id);
+                enabledScripts = enabledScripts.filter(id => {
+                    if (id === script.id) return false;
+                    if (childScripts.some(child => child.id === id)) return false;
+                    return true;
+                });
             }
-
-            updateStorage(enabled);
-        });
-    }
-
-    // 处理Vue脚本开关切换（含父子逻辑）
-    function handleVueScriptToggle(script, isChecked) {
-        chrome.storage.local.get([hostname], (result) => {
-            let enabled = result[hostname] || [];
-
-            // 如果是父脚本
-            if (!script.parentScript) {
-                if (isChecked) {
-                    // 开启父脚本：添加父脚本ID
-                    if (!enabled.includes(script.id)) {
-                        enabled.push(script.id);
-                    }
-                } else {
-                    // 关闭父脚本：同时移除父脚本和所有子脚本
-                    const childScripts = allScripts.filter(s => s.parentScript === script.id);
-                    enabled = enabled.filter(id => {
-                        if (id === script.id) return false;
-                        if (childScripts.some(child => child.id === id)) return false;
-                        return true;
-                    });
+        }
+        // 如果是子脚本
+        else {
+            if (isChecked) {
+                // 开启子脚本：移除父脚本，只保留子脚本
+                enabledScripts = enabledScripts.filter(id => id !== script.parentScript);
+                if (!enabledScripts.includes(script.id)) {
+                    enabledScripts.push(script.id);
+                }
+            } else {
+                // 关闭子脚本：移除子脚本，恢复父脚本
+                enabledScripts = enabledScripts.filter(id => id !== script.id);
+                if (!enabledScripts.includes(script.parentScript)) {
+                    enabledScripts.push(script.parentScript);
                 }
             }
-            // 如果是子脚本
-            else {
-                if (isChecked) {
-                    // 开启子脚本：移除父脚本，只保留子脚本
-                    enabled = enabled.filter(id => id !== script.parentScript);
-                    if (!enabled.includes(script.id)) {
-                        enabled.push(script.id);
-                    }
-                } else {
-                    // 关闭子脚本：移除子脚本，恢复父脚本
-                    enabled = enabled.filter(id => id !== script.id);
-                    if (!enabled.includes(script.parentScript)) {
-                        enabled.push(script.parentScript);
-                    }
-                }
-            }
+        }
 
-            updateStorage(enabled);
-        });
+        updateStorage(enabledScripts);
     }
 
-    // 统一的存储更新函数
+    // 🆕 统一的存储更新函数（支持全局模式）
     function updateStorage(enabled) {
-        chrome.storage.local.set({
-            [hostname]: enabled
-        }, () => {
-            // 通知后台更新脚本注册
-            chrome.runtime.sendMessage({
-                type: 'update_scripts_registration',
-                hostname: hostname,
-                enabledScripts: enabled
-            });
+        if (isGlobalMode) {
+            // 全局模式：更新全局脚本列表
+            globalEnabledScripts = [...enabled];
+            chrome.storage.local.set({
+                [GLOBAL_SCRIPTS_KEY]: globalEnabledScripts
+            }, () => {
+                // 通知后台更新脚本注册（全局模式）
+                chrome.runtime.sendMessage({
+                    type: 'update_scripts_registration',
+                    hostname: '*',
+                    enabledScripts: enabled,
+                    isGlobalMode: true
+                });
 
-            // 通知标签页更新状态
-            chrome.tabs.sendMessage(currentTab_obj.id, {
-                type: 'scripts_updated',
-                hostname: hostname,
-                enabledScripts: enabled
-            });
+                // 通知标签页更新状态
+                chrome.tabs.sendMessage(currentTab_obj.id, {
+                    type: 'scripts_updated',
+                    hostname: hostname,
+                    enabledScripts: enabled
+                });
 
-            // 更新本地状态并重新渲染
-            enabledScripts = enabled;
-            renderCurrentTab();
-        });
+                // 更新本地状态并重新渲染
+                enabledScripts = enabled;
+                renderCurrentTab();
+            });
+        } else {
+            // 标准模式：更新当前域名配置
+            chrome.storage.local.set({
+                [hostname]: enabled
+            }, () => {
+                // 通知后台更新脚本注册（标准模式）
+                chrome.runtime.sendMessage({
+                    type: 'update_scripts_registration',
+                    hostname: hostname,
+                    enabledScripts: enabled,
+                    isGlobalMode: false
+                });
+
+                // 通知标签页更新状态
+                chrome.tabs.sendMessage(currentTab_obj.id, {
+                    type: 'scripts_updated',
+                    hostname: hostname,
+                    enabledScripts: enabled
+                });
+
+                // 更新本地状态并重新渲染
+                enabledScripts = enabled;
+                renderCurrentTab();
+            });
+        }
     }
 });
