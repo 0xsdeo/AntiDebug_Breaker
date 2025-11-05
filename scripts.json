@@ -87,7 +87,7 @@
   {
     "id": "detectorExec",
     "name": "激活Vue Devtools",
-    "description": "当开启本脚本后将激活Vue Devtools。Vue2需开启Vue.js devtools(v5)，Vue3需开启Vue.js devtools，可自行去谷歌插件商店安装上述两个插件。注：两个插件不能同时开。",
+    "description": "当开启本脚本后将激活Vue Devtools。Vue2需开启Vue.js devtools(v5)，Vue3需开启Vue.js devtools，可自行去谷歌插件商店安装上述两个插件。注：1. 两个插件不能同时开。2. 当下方没有检测到Vue Router时并不能代表网站不是Vue框架，只能说明网站并没有使用Vue router。",
     "category": "vue"
   }
 ]
