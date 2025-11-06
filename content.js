@@ -57,6 +57,16 @@
             sendResponse({success: true});
         }
         
+        // 🆕 监听popup触发Vue重扫描请求
+        if (message.type === 'TRIGGER_VUE_RESCAN') {
+            // 转发重扫描请求到页面脚本
+            window.postMessage({
+                type: 'MANUAL_RESCAN_VUE',
+                source: 'antidebug-extension'
+            }, '*');
+            sendResponse({success: true});
+        }
+        
         return true;
     });
 

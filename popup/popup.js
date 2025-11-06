@@ -1,4 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // 🆕 自动触发Vue重扫描
+    function triggerVueRescan() {
+        try {
+            // 向页面发送重扫描消息
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        type: 'TRIGGER_VUE_RESCAN',
+                        source: 'antidebug-extension'
+                    }, () => {
+                        // 忽略错误，某些页面可能没有content script
+                        if (chrome.runtime.lastError) {
+                            // 静默处理错误
+                        }
+                    });
+                }
+            });
+        } catch (error) {
+            console.warn('触发Vue重扫描失败:', error);
+        }
+    }
+
+    // popup打开时自动触发重扫描
+    triggerVueRescan();
+
     // ========== Base模式偏好设置（全局持久化） ==========
     function getBaseModePreference() {
         try {
@@ -671,7 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 detectedBaseValue.textContent = cleanDetectedBase;
             }
 
-            // ✅ 从storage读取该域名的自定义base
+            // ✅ 从 storage读取该域名的自定义base
             const storageKey = `${hostname}_custom_base`;
             chrome.storage.local.get([storageKey], (result) => {
                 currentCustomBase = result[storageKey] || '';

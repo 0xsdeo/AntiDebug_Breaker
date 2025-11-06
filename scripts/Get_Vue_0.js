@@ -71,10 +71,36 @@ function sendToExtension(data) {
     }
 }
 
+    // 🆕 重扫描功能：清理资源并重新开始扫描
+    function restartScanning() {
+        console.log('🔄 开始重新扫描Vue实例...');
+        
+        // 清理现有资源
+        allTimeoutIds.forEach(id => clearTimeout(id));
+        allTimeoutIds = [];
+        if (observer) {
+            observer.disconnect();
+            observer = null;
+        }
+        
+        // 重置状态（但保留缓存的实例）
+        hasOutputResult = false;
+        
+        // 重新开始扫描
+        startDOMObserver();
+        startPollingRetry();
+    }
+
             // 监听来自插件的请求
         window.addEventListener('message', (event) => {
             // 只接受来自同一窗口的消息
             if (event.source !== window) return;
+            
+            // 🆕 检查是否是重扫描请求
+            if (event.data && event.data.type === 'MANUAL_RESCAN_VUE' && event.data.source === 'antidebug-extension') {
+                restartScanning();
+                return;
+            }
             
             // 检查是否是请求Vue数据的消息
             if (event.data && event.data.type === 'REQUEST_VUE_ROUTER_DATA' && event.data.source === 'antidebug-extension') {
@@ -486,7 +512,7 @@ function sendToExtension(data) {
     // 后备轮询重试机制
     function startPollingRetry() {
         let delay = 100;
-        let detectRemainingTries = 12;
+        let detectRemainingTries = 5;
 
         function executeDetection() {
             // 尝试获取（会自动输出新发现的Router）
