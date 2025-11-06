@@ -123,9 +123,11 @@
                     }
                     console.log("%c---------------------------------------------------------------------", "color: green;");
                 } else {
+                    console.groupCollapsed("如果上方正常输出了对称加密的key、iv等加密参数可忽略本条信息。");
                     console.log(...arguments);
-                    console.log("对称加密：如果上方正常输出了key、iv等加密参数可忽略本条信息。由于一些必要因素导致未能输出key、iv等加密参数，请自行使用上方打印的对象进行toString调用输出key、iv等加密参数。");
+                    console.log("对称加密：由于一些必要因素导致未能输出key、iv等加密参数，请自行使用上方打印的对象进行toString调用输出key、iv等加密参数。");
                     console.log("%c---------------------------------------------------------------------", "color: green;");
+                    console.groupEnd();
                 }
             }
             // CryptoJS 对称解密
