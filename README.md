@@ -134,7 +134,9 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 ## 致谢
 
-CC11001100、Dexter、d1sbb、Yosan、<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
+致谢个人：CC11001100、Dexter、d1sbb、Yosan
+
+本项目参考过、引用过或正在引用的优质项目：<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
 
 ## 交流群
 
