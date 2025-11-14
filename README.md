@@ -146,9 +146,7 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 ## 交流群
 
-二维码过期了可以加我的微信：I-0xsdeo
-
-![1759934860200](image/README/1759934860200.png)
+如需添加交流群可加我微信：I-0xsdeo
 
 ## Contact
 
