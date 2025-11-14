@@ -2,7 +2,7 @@
 
 ## Intro
 
-本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS库</a>所写的google插件，将致力于绕过前端各种反调试操作以及Vue信息收集。
+本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS</a>库所写的google插件，将致力于绕过前端各种反调试操作以及Vue信息收集。
 
 如何提交您自己的脚本：<a href="https://github.com/0xsdeo/AntiDebug_Breaker/wiki/%E6%8F%90%E4%BA%A4%E6%82%A8%E8%87%AA%E5%B7%B1%E7%9A%84hook%E8%84%9A%E6%9C%AC">AntiDebug_Breaker wiki</a>
 
@@ -43,9 +43,7 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 - hook log
 
-本脚本为Yosan师傅所作。
-
-本脚本用于防止js重写console.log等方法。
+本脚本为Yosan师傅所作，用于防止js重写console.log等方法。
 
 - Hook table
 
@@ -128,6 +126,12 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/klhBr2V7UJpspiAmRY1DXQ">最大化收集Vue框架(SPA类型)下的js</a>
 
+- 激活Vue Devtools
+
+本脚本引用自<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>。
+
+当开启本脚本后将激活Vue Devtools。Vue2需开启Vue.js devtools(v5)，Vue3需开启Vue.js devtools，可自行去谷歌插件商店安装上述两个插件。注：1.上述两个插件不能同时开。2.当下方没有检测到Vue Router时并不能代表网站不是Vue框架，只能说明网站并没有使用Vue Router。
+
 ## 插件使用注意事项
 
 1. 进入网页后，无论是开启脚本还是关闭脚本，需刷新页面后才会生效。
@@ -149,3 +153,6 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 ## Contact
 
 如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我。
+
+## Star History
+[![Stargazers over time](https://starchart.cc/0xsdeo/AntiDebug_Breaker.svg?variant=adaptive)](https://starchart.cc/0xsdeo/AntiDebug_Breaker)
