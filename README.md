@@ -2,7 +2,7 @@
 
 ## Intro
 
-本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS</a>库所写的google插件，将致力于绕过前端各种反调试操作以及Vue信息收集。
+本插件是基于<a href="https://github.com/0xsdeo/Hook_JS">Hook_JS</a>库所写的Google插件，将致力于绕过前端各种反调试操作以及Vue信息收集。
 
 如何提交您自己的脚本：<a href="https://github.com/0xsdeo/AntiDebug_Breaker/wiki/%E6%8F%90%E4%BA%A4%E6%82%A8%E8%87%AA%E5%B7%B1%E7%9A%84hook%E8%84%9A%E6%9C%AC">AntiDebug_Breaker wiki</a>
 
@@ -23,9 +23,30 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 ## 脚本使用场景
 
+>反调试
+
+- <a href="#Bypass_Debugger">Bypass Debugger</a>
+- <a href="#hook_log">hook log</a>
+- <a href="#Hook_table">Hook table</a>
+- <a href="#hook_clear">hook clear</a>
+- <a href="#hook_close">hook close</a>
+- <a href="#hook_history">hook history</a>
+- <a href="#Fixed_window_size">Fixed window size</a>
+- <a href="#location_href">页面跳转JS代码定位通杀方案</a>
+- <a href="#Hook_CryptoJS">Hook CryptoJS</a>
+- <a href="#Hook_JSEncrypt_RSA">Hook JSEncrypt RSA</a>
+- <a href="#Hook_Promise">Hook Promise</a>
+
+> Vue
+
+- <a href="#Get_Vue_0">获取路由</a>
+- <a href="#Get_Vue_1">清除跳转</a>
+- <a href="#Clear_vue_Navigation_Guards">清除路由守卫</a>
+- <a href="#detectorExec">激活Vue Devtools</a>
+
 ### 反调试
 
-- Bypass Debugger
+- <a id="Bypass_Debugger" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Bypass_Debugger.js">Bypass Debugger</a>
 
 该脚本用于绕过**无限Debugger**，目前引起无限Debugger的三种核心方式为：
 
@@ -41,11 +62,11 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/3xagT-PXCgGrw9YiaCe__g">JS逆向系列14-Bypass Debugger</a>
 
-- hook log
+- <a id="hook_log" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_log.js">hook log</a>
 
 本脚本为Yosan师傅所作，用于防止js重写console.log等方法。
 
-- Hook table
+- <a id="Hook_table" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_table.js">Hook table</a>
 
 绕过js检测运行时间差来实现反调试。
 
@@ -61,25 +82,25 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/JZu-fknVdEpaI5anzSlLjg">JS逆向系列19-无感绕过一类运行时间差反调试</a>
 
-- hook clear
+- <a id="hook_clear" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_clear.js">hook clear</a>
 
 禁止js清除控制台数据。
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/r-ZcP2knpmoVEK0y_26xBw">JS逆向系列10-反调试与反反调试</a>
 
-- hook close
+- <a id="hook_close" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_close.js">hook close</a>
 
 重写close，以此来避免网站反调试关闭当前页面。
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/r-ZcP2knpmoVEK0y_26xBw">JS逆向系列10-反调试与反反调试</a>
 
-- hook history
+- <a id="hook_history" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_history.js">hook history</a>
 
 避免网站反调试返回上一页或某个特定历史页面。
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/r-ZcP2knpmoVEK0y_26xBw">JS逆向系列10-反调试与反反调试</a>
 
-- Fixed window size
+- <a id="Fixed_window_size" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Fixed_window_size.js">Fixed window size</a>
 
 固定浏览器高度宽度值以绕过前端检测用户是否打开控制台。
 
@@ -92,19 +113,19 @@ outerHeight：760
 outerWidth：1400
 ```
 
-- 页面跳转JS代码定位通杀方案
+- <a id="location_href" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/location_href.js">页面跳转JS代码定位通杀方案</a>
 
 本脚本为CC11001100师傅所作，脚本原地址：`https://github.com/JSREI/page-redirect-code-location-hook`，用于阻断页面跳转，留在当前页面分析。
 
-- Hook CryptoJS
+- <a id="Hook_CryptoJS" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_CryptoJS.js">Hook CryptoJS</a>
 
 Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、SHA等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的加密算法，如果确认使用的是CryptoJS库进行的加密而无法打印可联系我。
 
-- Hook JSEncrypt RSA
+- <a id="Hook_JSEncrypt_RSA" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_JSEncrypt.js">Hook JSEncrypt RSA</a>
 
 Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。
 
-- Hook Promise
+- <a id="Hook_Promise" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_Promise.js">Hook Promise</a>
 
 本脚本为Yosan师傅所作。
 
@@ -112,21 +133,21 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 ### Vue
 
-- 获取路由
+- <a id="Get_Vue_0" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Get_Vue_0.js">获取路由</a>
 
 获取已加载的路由并显示在下方的表格中，注意未加载的路由不会被获取到，如果长时间未获取到可能是由于目标站点未使用vue router，也可能是因为目标站点未加载完毕。
 
-- 清除跳转
+- <a id="Get_Vue_1" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Get_Vue_1.js">清除跳转</a>
 
 本脚本将清除vue router的跳转方法，如果清除后依然会跳转，一方面可能是由于注入的脚本还未清除跳转方法，网站就调用了方法进行跳转，此时可以考虑手动替换js清除跳转方法。另一方面可能是由于在代码中调用的不是vue router的跳转方法，此时可以考虑开启反调试板块中的hook close或hook history脚本，再或者打开页面跳转JS代码定位通杀方案脚本，定位到跳转的函数并替换清除。
 
-- 清除路由守卫
+- <a id="Clear_vue_Navigation_Guards" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Clear_vue_Navigation_Guards.js">清除路由守卫</a>
 
 仅清除全局前置守卫(beforeEach)和全局解析守卫(beforeResolve)，如果清除后网站控制台显示报错，可能是由于在路由守卫中做了动态加载等其他操作，此时可以考虑关闭本脚本并亲自替换js逻辑实现绕过。
 
 脚本原理：<a href="https://mp.weixin.qq.com/s/klhBr2V7UJpspiAmRY1DXQ">最大化收集Vue框架(SPA类型)下的js</a>
 
-- 激活Vue Devtools
+- <a id="detectorExec" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/detectorExec.js">激活Vue Devtools</a>
 
 本脚本引用自<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>。
 
