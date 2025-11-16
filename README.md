@@ -157,7 +157,8 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 1. 进入网页后，无论是开启脚本还是关闭脚本，需刷新页面后才会生效。
 2. **本插件无法做到自动化添加Vue未加载的路由。**
-3. **更新插件时请将旧版本插件从浏览器中移除再导入新版插件。**
+3. 本插件目前不支持火狐。
+4. **更新插件时请将旧版本插件从浏览器中移除再导入新版插件。**
 
 ## 致谢
 
@@ -165,13 +166,9 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 本项目参考过、引用过或正在引用的优质项目：<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
 
-## 交流群
-
-如需添加交流群可加我微信：I-0xsdeo
-
 ## Contact
 
-如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我。
+如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我，如需添加交流群可加我微信：I-0xsdeo。
 
 ## Star History
 [![Stargazers over time](https://starchart.cc/0xsdeo/AntiDebug_Breaker.svg?variant=adaptive)](https://starchart.cc/0xsdeo/AntiDebug_Breaker)
