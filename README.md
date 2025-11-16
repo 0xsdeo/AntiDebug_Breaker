@@ -64,7 +64,7 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 - <a id="hook_log" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_log.js">hook log</a>
 
-本脚本为Yosan师傅所作，用于防止js重写console.log等方法。
+本脚本为<a href="https://github.com/lyousan">Yosan</a>师傅所作，用于防止js重写console.log等方法。
 
 - <a id="Hook_table" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_table.js">Hook table</a>
 
@@ -115,7 +115,7 @@ outerWidth：1400
 
 - <a id="location_href" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/location_href.js">页面跳转JS代码定位通杀方案</a>
 
-本脚本为CC11001100师傅所作，脚本原地址：`https://github.com/JSREI/page-redirect-code-location-hook`，用于阻断页面跳转，留在当前页面分析。
+本脚本为<a href="https://github.com/CC11001100">CC11001100</a>师傅所作，脚本原地址：`https://github.com/JSREI/page-redirect-code-location-hook`，用于阻断页面跳转，留在当前页面分析。
 
 - <a id="Hook_CryptoJS" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_CryptoJS.js">Hook CryptoJS</a>
 
@@ -127,7 +127,7 @@ Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、
 
 - <a id="Hook_Promise" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_Promise.js">Hook Promise</a>
 
-本脚本为Yosan师傅所作。
+本脚本为<a href="https://github.com/lyousan">Yosan</a>师傅所作。
 
 Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。
 
@@ -161,7 +161,7 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 ## 致谢
 
-致谢个人：CC11001100、Dexter、d1sbb、Yosan
+致谢个人：<a href="https://github.com/CC11001100">CC11001100</a>、<a href="https://github.com/mingheyan">Dexter</a>、<a href="https://github.com/d1sbb">d1sbb</a>、<a href="https://github.com/lyousan">Yosan</a>
 
 本项目参考过、引用过或正在引用的优质项目：<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>
 
