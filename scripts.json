@@ -2,13 +2,13 @@
   {
     "id": "Bypass_Debugger",
     "name": "Bypass Debugger",
-    "description": "绕过无限Debugger， 如绕不过去或报错请使用火狐忽略断点。",
+    "description": "绕过无限Debugger， 如绕不过去或报错请使用火狐浏览器忽略断点。",
     "category": "antidebug"
   },
   {
     "id": "hook_log",
     "name": "hook log",
-    "description": "防止js重写console.log等方法",
+    "description": "防止js重写console.log等方法，以此来避免控制台无法打印内容，可配合Hook CryptoJS和Hook JSEncrypt RSA两个脚本使用。",
     "category": "antidebug"
   },
   {
@@ -44,7 +44,7 @@
   {
     "id": "hook_Promise",
     "name": "Hook Promise",
-    "description": "Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
+    "description": "将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
     "category": "antidebug"
   },
   {
