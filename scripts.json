@@ -8,7 +8,7 @@
   {
     "id": "hook_log",
     "name": "hook log",
-    "description": "防止js重写console.log等方法，以此来避免控制台无法打印内容，可配合Hook CryptoJS和Hook JSEncrypt RSA两个脚本使用。",
+    "description": "防止js重写console.log等方法，以此来避免控制台无法打印内容，可配合Hook CryptoJS和Hook JSEncrypt RSA两个脚本一起使用。",
     "category": "antidebug"
   },
   {
