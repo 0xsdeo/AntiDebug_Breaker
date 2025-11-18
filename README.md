@@ -168,7 +168,9 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 ## Contact
 
-如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我，如需添加交流群可加我微信：I-0xsdeo。
+如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我。
+
+如需添加交流群可加我微信：I-0xsdeo。
 
 ## Star History
 [![Stargazers over time](https://starchart.cc/0xsdeo/AntiDebug_Breaker.svg?variant=adaptive)](https://starchart.cc/0xsdeo/AntiDebug_Breaker)
