@@ -37,6 +37,25 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 - <a href="#Hook_JSEncrypt_RSA">Hook JSEncrypt RSA</a>
 - <a href="#Hook_Promise">Hook Promise</a>
 
+>Hook
+
+- <a href="#document.cookie">document.cookie</a>
+- <a href="#XMLHttpRequest.setRequestHeader">XMLHttpRequest.setRequestHeader</a>
+- <a href="#XMLHttpRequest.open">XMLHttpRequest.open</a>
+- <a href="#localStorage.setItem">localStorage.setItem</a>
+- <a href="#localStorage.getItem">localStorage.getItem</a>
+- <a href="#localStorage.removeItem">localStorage.removeItem</a>
+- <a href="#localStorage.clear">localStorage.clear</a>
+- <a href="#sessionStorage.setItem">sessionStorage.setItem</a>
+- <a href="#sessionStorage.getItem">sessionStorage.getItem</a>
+- <a href="#sessionStorage.removeItem">sessionStorage.removeItem</a>
+- <a href="#sessionStorage.clear">sessionStorage.clear</a>
+- <a href="#fetch">fetch</a>
+- <a href="#JSON.parse">JSON.parse</a>
+- <a href="#JSON.stringify">JSON.stringify</a>
+- <a href="#Math.random">Math.random</a>
+- <a href="#Date.now">Date.now</a>
+
 > Vue
 
 - <a href="#Get_Vue_0">获取路由</a>
@@ -130,6 +149,72 @@ Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、
 本脚本为<a href="https://github.com/lyousan">Yosan</a>师傅所作。
 
 Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。
+
+### Hook
+
+- <a id="document.cookie" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_cookie.js">document.cookie</a>
+
+开启本脚本后默认将在控制台打印设置的cookie，如果需要打印特定cookie请在下方输入框中输入cookie名称，脚本将会捕获这些特定cookie名。
+
+- <a id="XMLHttpRequest.setRequestHeader" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_xhr_setRequestHeader.js">XMLHttpRequest.setRequestHeader</a>
+
+开启本脚本后默认将在控制台打印设置的请求头，如果需要打印特定请求头请在下方输入框中输入请求头名称，脚本将会捕获这些特定请求头名。
+
+- <a id="XMLHttpRequest.open" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_xhr_open.js">XMLHttpRequest.open</a>
+
+开启本脚本后默认将在控制台打印初始化xhr请求配置(url,method)，如果需要捕获特定url请在下方输入框中输入url名称，脚本将会捕获这些特定url名称。
+
+- <a id="localStorage.setItem" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_localStorage_setItem.js">localStorage.setItem</a>
+
+开启本脚本后默认将在控制台打印设置的localStorage键值，如果需要捕获特定键请在下方输入框中输入键名，脚本将会捕获这些特定键名。
+
+- <a id="localStorage.getItem" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_localStorage_getItem.js">localStorage.getItem</a>
+
+开启本脚本后默认将在控制台打印站点读取的localStorage键名，如果需要捕获特定键名请在下方输入框中输入键名，脚本将会捕获这些特定键名。
+
+- <a id="localStorage.removeItem" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_localStorage_removeItem.js">localStorage.removeItem</a>
+
+开启本脚本后默认将在控制台打印移除的localStorage键名，如果需要捕获特定键名请在下方输入框中输入键名，脚本将会捕获这些特定键名。
+
+- <a id="localStorage.clear" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_localStorage_clear.js">localStorage.clear</a>
+
+开启本脚本后如果站点进行了清空localStorage动作，默认会在控制台打印消息。
+
+- <a id="sessionStorage.setItem" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_sessionStorage_setItem.js">sessionStorage.setItem</a>
+
+开启本脚本后默认将在控制台打印设置的sessionStorage键值，如果需要捕获特定键请在下方输入框中输入键名，脚本将会捕获这些特定键名。
+
+- <a id="sessionStorage.getItem" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_sessionStorage_getItem.js">sessionStorage.getItem</a>
+
+开启本脚本后默认将在控制台打印站点读取的sessionStorage键名，如果需要捕获特定键名请在下方输入框中输入键名，脚本将会捕获这些特定键名。
+
+- <a id="sessionStorage.removeItem" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_sessionStorage_removeItem.js">sessionStorage.removeItem</a>
+
+开启本脚本后默认将在控制台打印移除的sessionStorage键名，如果需要捕获特定键名请在下方输入框中输入键名，脚本将会捕获这些特定键名。
+
+- <a id="sessionStorage.clear" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_sessionStorage_clear.js">sessionStorage.clear</a>
+
+开启本脚本后如果站点进行了清空sessionStorage动作，默认会在控制台打印消息。
+
+- <a id="fetch" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_fetch.js">fetch</a>
+
+开启本脚本后默认将在控制台打印fetch请求设置。
+
+- <a id="JSON.parse" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_json_parse.js">JSON.parse</a>
+
+开启本脚本后默认将在控制台打印传入的JSON，如果需要捕获特定JSON请在下方输入框中输入JSON，脚本将会捕获这些特定JSON字符串。
+
+- <a id="JSON.stringify" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_json_stringify.js">JSON.stringify</a>
+
+开启本脚本后默认将在控制台打印传入JSON.stringify的值。
+
+- <a id="Math.random" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_random.js">Math.random</a>
+
+固定Math.random返回值
+
+- <a id="Date.now" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_Date_now.js">Date.now</a>
+
+固定Date.now返回值"
 
 ### Vue
 
