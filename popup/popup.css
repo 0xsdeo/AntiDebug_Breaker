@@ -130,6 +130,118 @@ h1 {
     border: 1px solid var(--border);
     transition: all 0.3s ease;
     margin: 0 5px;
+    position: relative;
+}
+
+/* Hook板块搜索框：往下放一些，为"必看说明"留出空间 */
+.search-container.hook-search-container {
+    margin-top: 30px;
+    overflow: visible; /* 允许上方内容显示 */
+}
+
+/* Hook板块必看说明容器 */
+.hook-notice-container {
+    position: absolute;
+    top: -30px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Hook板块必看说明文字 */
+.hook-notice-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--on-surface);
+    white-space: nowrap;
+    transition: color 0.3s ease;
+    user-select: none;
+    cursor: pointer;
+}
+
+.hook-notice-container:hover .hook-notice-text {
+    color: var(--on-surface);
+}
+
+/* Hook板块必看说明tooltip样式 - 复用mode-tooltip样式 */
+.hook-notice-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: -10px;
+    background: var(--surface-light);
+    color: var(--on-surface);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+    width: 350px;
+    max-width: 350px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--primary);
+    z-index: 9999;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    pointer-events: none;
+}
+
+.hook-notice-tooltip::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 14px;
+    border: 7px solid transparent;
+    border-bottom-color: var(--primary);
+}
+
+.hook-notice-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 15px;
+    border: 6px solid transparent;
+    border-bottom-color: var(--surface-light);
+}
+
+.hook-notice-text:hover ~ .hook-notice-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Hook板块筛选按钮容器 */
+.hook-filter-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Hook板块筛选按钮 */
+.hook-filter-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--on-surface-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.hook-filter-btn:hover {
+    color: var(--on-surface);
+    border-color: var(--primary);
+    background: rgba(26, 115, 232, 0.1);
+}
+
+.hook-filter-btn.active {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: rgba(26, 115, 232, 0.2);
 }
 
 /* Vue路由搜索框样式 */
@@ -465,6 +577,7 @@ input:checked + .slider:before {
     cursor: help;
     flex-shrink: 0;
     transition: all 0.3s ease;
+    z-index: 100; /* 🔧 确保脚本描述框在最上层，不受其他元素影响 */
 }
 
 .vue-script-info:hover {
@@ -1110,4 +1223,482 @@ footer {
 /* 悬停时保持全局模式的颜色 */
 .mode-switch-container:hover .mode-switch input:checked ~ .mode-text {
     color: var(--primary-light);
+}
+
+/* ========== Hook板块样式 ========== */
+.hook-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 10px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.hook-script-item {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hook-script-item:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.hook-script-item.enabled {
+    border-color: var(--primary-light);
+    background: linear-gradient(to right, var(--surface) 0%, rgba(26, 115, 232, 0.05) 100%);
+}
+
+/* 🔧 修复：禁用状态下，头部区域（脚本名、描述按钮）不显示禁止光标 */
+.hook-script-item.disabled .hook-script-header {
+    cursor: default !important;
+}
+
+.hook-script-item.disabled .hook-script-name,
+.hook-script-item.disabled .vue-script-info {
+    cursor: default !important;
+}
+
+/* 开关按钮在禁用状态下仍然可以点击（用于启用脚本），所以保持pointer光标 */
+.hook-script-item.disabled .hook-main-switch,
+.hook-script-item.disabled .hook-main-switch * {
+    cursor: pointer !important;
+}
+
+/* 禁用状态下，只有下方的输入区域和操作区域显示禁止光标 */
+.hook-script-item.disabled .hook-input-group,
+.hook-script-item.disabled .hook-input-group *,
+.hook-script-item.disabled .hook-script-actions,
+.hook-script-item.disabled .hook-script-actions * {
+    cursor: not-allowed !important;
+}
+
+.hook-script-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.hook-script-name {
+    flex: 1;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--on-surface);
+}
+
+.hook-main-switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.hook-main-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hook-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #555;
+    transition: .3s;
+    border-radius: 34px;
+}
+
+.hook-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+.hook-main-switch input:checked + .hook-slider {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+}
+
+.hook-main-switch input:checked + .hook-slider:before {
+    transform: translateX(20px);
+}
+
+.hook-main-switch input:disabled + .hook-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hook-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.hook-input-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--on-surface-secondary);
+}
+
+/* 关键字标签行（包含标签和开关） */
+.hook-input-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+/* 关键字检索开关 */
+.hook-keyword-filter-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.hook-keyword-filter-switch-label {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+
+.hook-keyword-filter-checkbox {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hook-keyword-filter-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #555;
+    border-radius: 20px;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.hook-keyword-filter-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.hook-keyword-filter-checkbox:checked + .hook-keyword-filter-slider {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+}
+
+.hook-keyword-filter-checkbox:checked + .hook-keyword-filter-slider:before {
+    transform: translateX(16px);
+}
+
+.hook-keyword-filter-checkbox:disabled + .hook-keyword-filter-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hook-keyword-filter-label-text {
+    font-size: 12px;
+    color: var(--on-surface-secondary);
+    user-select: none;
+}
+
+/* 关键字检索禁用状态：显示禁止光标 */
+.hook-keywords-container.keyword-filter-disabled {
+    cursor: not-allowed;
+}
+
+.hook-keywords-container.keyword-filter-disabled .hook-keyword-input,
+.hook-keywords-container.keyword-filter-disabled .keyword-remove-btn,
+.hook-keywords-container.keyword-filter-disabled .keyword-item {
+    cursor: not-allowed;
+}
+
+.hook-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 固定值输入框包装器（用于定位提示框） */
+.hook-value-input-wrapper {
+    position: relative;
+}
+
+.hook-value-input,
+.hook-keyword-input {
+    flex: 1;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--on-surface);
+    font-size: 13px;
+    transition: all 0.3s ease;
+}
+
+.hook-value-input:focus,
+.hook-keyword-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.hook-value-input:disabled,
+.hook-keyword-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(30, 58, 95, 0.3);
+}
+
+/* 固定值输入框提示框样式（复用脚本描述框样式） */
+.hook-value-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    background: var(--surface-light);
+    color: var(--on-surface);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--primary);
+    z-index: 9999;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    pointer-events: none;
+}
+
+.hook-value-tooltip::before {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 14px;
+    border: 7px solid transparent;
+    border-top-color: var(--primary);
+}
+
+.hook-value-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 15px;
+    border: 6px solid transparent;
+    border-top-color: var(--surface-light);
+}
+
+.hook-value-input-wrapper.show-tooltip .hook-value-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.hook-save-btn,
+.hook-clear-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.hook-save-btn {
+    background: var(--success);
+    color: white;
+}
+
+.hook-save-btn:hover:not(:disabled) {
+    background: #00b248;
+    transform: scale(1.1);
+}
+
+.hook-save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hook-clear-btn {
+    background: var(--error);
+    color: white;
+}
+
+.hook-clear-btn:hover:not(:disabled) {
+    background: #ff3838;
+    transform: scale(1.1);
+}
+
+.hook-clear-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hook-keywords-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.keyword-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    gap: 8px;
+}
+
+.keyword-item span {
+    flex: 1;
+    font-size: 13px;
+    color: var(--on-surface);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.keyword-remove-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: none;
+    background: var(--error);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.keyword-remove-btn:hover:not(:disabled) {
+    background: #ff3838;
+    transform: scale(1.1);
+}
+
+.keyword-remove-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hook-script-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.hook-action-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--on-surface-secondary);
+    margin-right: 5px;
+}
+
+.hook-switch-btn {
+    padding: 6px 12px;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--on-surface-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.hook-switch-btn:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--on-surface);
+}
+
+.hook-switch-btn.active {
+    background: var(--primary);
+    border-color: var(--primary-light);
+    color: white;
+}
+
+.hook-switch-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Hook板块空状态 */
+.hook-content .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--on-surface-secondary);
+    font-size: 14px;
+}
+
+/* ========== Toast提示样式 ========== */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface-light);
+    color: var(--on-surface);
+    padding: 12px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--primary);
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.toast-message {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
 }

@@ -26,7 +26,7 @@
                         注：对于通过file://协议或localhost访问的页面，必须开启全局模式才能注入脚本。
                     </div>
                 </div>
-                
+
                 <h1>AntiDebug</h1>
                 <div class="breaker">Breaker</div>
                 <a href="https://github.com/0xsdeo/AntiDebug_Breaker" target="_blank" class="github-link">
@@ -41,11 +41,30 @@
             <!-- 标签切换栏 -->
             <div class="tabs-container">
                 <button class="tab-btn active" data-tab="antidebug">反调试</button>
+                <button class="tab-btn" data-tab="hook">Hook</button>
                 <button class="tab-btn" data-tab="vue">Vue</button>
             </div>
 
             <!-- 搜索栏（仅反调试板块显示） -->
             <div class="search-container">
+                <!-- Hook板块必看说明 -->
+                <div class="hook-notice-container" style="display: none;">
+                    <span class="hook-notice-text">必看说明</span>
+                    <div class="hook-notice-tooltip">
+                        1. 本板块分三类脚本：固定变量脚本、非固定变量脚本、非固定变量+可检索关键字脚本。<br><br>
+                        2. 固定变量脚本默认提供一个固定值，修改固定值后需按Enter保存。<br><br>
+                        3.
+                        非固定变量+可检索关键字脚本开启后，未开启检索关键字功能时会输出所有Hook到的内容；如果开启检索关键字并且设置了关键字仅会Hook输出关键字内容；若开启检索关键字功能但并没有设置关键字时将会输出所有Hook到的内容。<br><br>
+                        4. 可检索关键字的功能采取的是模糊检索，也就是说只要传进的内容中包含了检索的关键字就能被hook到。<br><br>
+                        5. 开启debugger或stack功能后，如果hook到内容将会触发debugger或打印堆栈信息。<br><br>
+                        6. 如果下方没有要用的hook脚本可以提issues，也可以联系我(公众号：Spade sec)，我会考虑是否纳入到后续更新进程中。
+                    </div>
+                    <!-- Hook板块筛选按钮 -->
+                    <div class="hook-filter-buttons">
+                        <button class="hook-filter-btn" id="hook-filter-enabled" data-filter="enabled">已开启</button>
+                        <button class="hook-filter-btn" id="hook-filter-disabled" data-filter="disabled">未开启</button>
+                    </div>
+                </div>
                 <input type="text" id="search-input" placeholder="Search scripts...">
                 <button id="search-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -59,6 +78,11 @@
         <!-- 反调试板块：3列网格 -->
         <div class="scripts-grid">
             <!-- Scripts will be dynamically loaded here -->
+        </div>
+
+        <!-- Hook板块 -->
+        <div class="hook-content" style="display: none;">
+            <!-- Hook板块内容将动态加载 -->
         </div>
 
         <!-- Vue板块：横向列表 + 路由列表 -->
@@ -93,7 +117,8 @@
                     </div>
                     <div class="custom-base-input-wrapper">
                         <label class="custom-base-label">自定义基础路径：</label>
-                        <input type="text" id="custom-base-input" class="custom-base-input" placeholder="留空显示标准路径，如：/admin" />
+                        <input type="text" id="custom-base-input" class="custom-base-input"
+                            placeholder="留空显示标准路径，如：/admin" />
                         <button class="clear-base-btn">清空</button>
                     </div>
                     <div class="base-hint">💡 输入后实时更新路由列表</div>
@@ -137,6 +162,11 @@
             <div class="signature">By 0xsdeo</div>
             <div class="hint">页面刷新后更改生效</div>
         </footer>
+    </div>
+
+    <!-- Toast提示 -->
+    <div id="toast" class="toast">
+        <div class="toast-message">已保存</div>
     </div>
 
     <script src="popup.js"></script>

@@ -1,4 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ========== Toast提示功能（仅用于固定值保存） ==========
+    function showToast(message = '已保存') {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+        
+        const toastMessage = toast.querySelector('.toast-message');
+        if (toastMessage) {
+            toastMessage.textContent = message;
+        }
+        
+        toast.classList.add('show');
+        
+        // 2秒后自动隐藏
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2000);
+    }
+    // ========================================================
+    
     // 🆕 自动触发Vue重扫描
     function triggerVueRescan() {
         try {
@@ -43,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========================================================
 
     const scriptsGrid = document.querySelector('.scripts-grid');
+    const hookContent = document.querySelector('.hook-content');
     const vueContent = document.querySelector('.vue-content');
     const vueScriptsList = document.querySelector('.vue-scripts-list');
     const vueRouterData = document.querySelector('.vue-router-data');
@@ -52,6 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const noResults = document.querySelector('.no-results');
     const searchContainer = document.querySelector('.search-container');
     const searchInput = document.getElementById('search-input');
+    const hookNoticeContainer = document.querySelector('.hook-notice-container');
+    const hookFilterEnabledBtn = document.getElementById('hook-filter-enabled');
+    const hookFilterDisabledBtn = document.getElementById('hook-filter-disabled');
     const tabBtns = document.querySelectorAll('.tab-btn');
     const vueRouteSearchContainer = document.querySelector('.vue-route-search-container');
     const vueRouteSearchInput = document.getElementById('vue-route-search-input');
@@ -74,6 +97,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 🆕 全局模式状态管理
     let isGlobalMode = false; // 当前是否为全局模式
     let globalEnabledScripts = []; // 全局模式下启用的脚本
+
+    // 🆕 Hook板块筛选状态（'enabled' | 'disabled' | null）
+    let hookFilterState = null;
 
     // 🆕 全局模式存储键名
     const GLOBAL_MODE_KEY = 'antidebug_mode';
@@ -333,13 +359,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 搜索功能
                 searchInput.addEventListener('input', (e) => {
                     const searchTerm = e.target.value.toLowerCase();
+                    
+                    if (currentTab === 'antidebug') {
                     const filteredScripts = getScriptsForCurrentTab().filter(script =>
                         script.name.toLowerCase().includes(searchTerm) ||
                         script.description.toLowerCase().includes(searchTerm)
                     );
-
-                    if (currentTab === 'antidebug') {
                         renderAntiDebugScripts(filteredScripts);
+                    } else if (currentTab === 'hook') {
+                        // Hook板块：只检索脚本名
+                        let filteredScripts = getScriptsForCurrentTab().filter(script =>
+                            script.name.toLowerCase().includes(searchTerm)
+                        );
+                        // 🆕 应用筛选（已开启/未开启）
+                        filteredScripts = applyHookFilter(filteredScripts);
+                        renderHookScripts(filteredScripts);
                     }
                 });
             });
@@ -373,6 +407,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // 🆕 Hook板块筛选按钮点击事件
+    if (hookFilterEnabledBtn && hookFilterDisabledBtn) {
+        hookFilterEnabledBtn.addEventListener('click', () => {
+            if (hookFilterState === 'enabled') {
+                // 如果已选中，则取消筛选
+                saveHookFilterState(null);
+                hookFilterEnabledBtn.classList.remove('active');
+            } else {
+                // 选中"已开启"
+                saveHookFilterState('enabled');
+                hookFilterEnabledBtn.classList.add('active');
+                hookFilterDisabledBtn.classList.remove('active');
+            }
+            // 重新渲染Hook脚本
+            if (currentTab === 'hook') {
+                const scriptsToShow = getScriptsForCurrentTab();
+                renderHookScripts(scriptsToShow);
+            }
+        });
+
+        hookFilterDisabledBtn.addEventListener('click', () => {
+            if (hookFilterState === 'disabled') {
+                // 如果已选中，则取消筛选
+                saveHookFilterState(null);
+                hookFilterDisabledBtn.classList.remove('active');
+            } else {
+                // 选中"未开启"
+                saveHookFilterState('disabled');
+                hookFilterDisabledBtn.classList.add('active');
+                hookFilterEnabledBtn.classList.remove('active');
+            }
+            // 重新渲染Hook脚本
+            if (currentTab === 'hook') {
+                const scriptsToShow = getScriptsForCurrentTab();
+                renderHookScripts(scriptsToShow);
+            }
+        });
+    }
+
     // 根据当前标签获取要显示的脚本
     function getScriptsForCurrentTab() {
         return allScripts.filter(script => script.category === currentTab);
@@ -385,13 +458,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTab === 'antidebug') {
             // 显示反调试板块
             searchContainer.style.display = 'flex';
+            searchContainer.classList.remove('hook-search-container');
+            if (hookNoticeContainer) hookNoticeContainer.style.display = 'none';
             scriptsGrid.style.display = 'grid';
+            hookContent.style.display = 'none';
             vueContent.style.display = 'none';
             renderAntiDebugScripts(scriptsToShow);
+        } else if (currentTab === 'hook') {
+            // 显示Hook板块
+            searchContainer.style.display = 'flex';
+            searchContainer.classList.add('hook-search-container');
+            if (hookNoticeContainer) hookNoticeContainer.style.display = 'flex';
+            scriptsGrid.style.display = 'none';
+            hookContent.style.display = 'flex';
+            vueContent.style.display = 'none';
+            // 🆕 读取筛选状态并更新按钮
+            loadHookFilterState().then(() => {
+                updateHookFilterButtons();
+                renderHookScripts(scriptsToShow);
+            });
         } else if (currentTab === 'vue') {
             // 显示Vue板块
             searchContainer.style.display = 'none';
+            searchContainer.classList.remove('hook-search-container');
+            if (hookNoticeContainer) hookNoticeContainer.style.display = 'none';
             scriptsGrid.style.display = 'none';
+            hookContent.style.display = 'none';
             vueContent.style.display = 'flex';
             renderVueScripts(scriptsToShow);
             // 使用缓存的数据显示（改为多实例显示）
@@ -509,6 +601,697 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return scriptItem;
+    }
+
+    // 🆕 读取Hook筛选状态
+    function loadHookFilterState() {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(['hook_filter_state'], (result) => {
+                hookFilterState = result.hook_filter_state || null;
+                resolve(hookFilterState);
+            });
+        });
+    }
+
+    // 🆕 保存Hook筛选状态
+    function saveHookFilterState(state) {
+        hookFilterState = state;
+        chrome.storage.local.set({ hook_filter_state: state });
+    }
+
+    // 🆕 更新筛选按钮状态
+    function updateHookFilterButtons() {
+        if (hookFilterEnabledBtn && hookFilterDisabledBtn) {
+            hookFilterEnabledBtn.classList.toggle('active', hookFilterState === 'enabled');
+            hookFilterDisabledBtn.classList.toggle('active', hookFilterState === 'disabled');
+        }
+    }
+
+    // 🆕 应用Hook筛选
+    function applyHookFilter(scripts) {
+        if (!hookFilterState) {
+            return scripts; // 无筛选，返回所有脚本
+        }
+        
+        return scripts.filter(script => {
+            const isEnabled = enabledScripts.includes(script.id);
+            if (hookFilterState === 'enabled') {
+                return isEnabled;
+            } else if (hookFilterState === 'disabled') {
+                return !isEnabled;
+            }
+            return true;
+        });
+    }
+
+    // 渲染Hook脚本
+    function renderHookScripts(scripts) {
+        // 🔧 修复：如果当前在 Hook 板块且有搜索词，应用搜索过滤
+        if (currentTab === 'hook' && searchInput && searchInput.value.trim()) {
+            const searchTerm = searchInput.value.toLowerCase();
+            scripts = scripts.filter(script =>
+                script.name.toLowerCase().includes(searchTerm)
+            );
+        }
+        
+        // 🆕 应用筛选（已开启/未开启）
+        scripts = applyHookFilter(scripts);
+        
+        // 🔧 修复：先批量加载所有配置，配置加载完成后再清空并渲染，避免闪烁
+        if (scripts.length === 0) {
+            hookContent.innerHTML = '<div class="empty-state">暂无 Hook 脚本</div>';
+            return;
+        }
+        
+        // 先批量加载所有配置（不清空容器，保持旧内容显示）
+        const configPromises = scripts.map(script => {
+            if (typeof script.id !== 'string' || !script.id.trim()) {
+                console.error('Invalid script ID:', script);
+                return null;
+            }
+            return loadHookConfig(script.id).then(config => ({
+                script,
+                config
+            }));
+        }).filter(p => p !== null);
+        
+        // 等待所有配置加载完成
+        Promise.all(configPromises).then(results => {
+            // 配置加载完成后，再清空容器并同步渲染所有脚本项
+            hookContent.innerHTML = '';
+            
+            results.forEach(({ script, config }) => {
+                const isEnabled = enabledScripts.includes(script.id);
+                const isFixedVariate = script.fixed_variate === 1;
+                const hasParam = script.has_Param === 1;
+                
+                // 如果脚本已启用，确保配置正确初始化
+                if (isEnabled && !isFixedVariate) {
+                    if (hasParam) {
+                        // has_Param=1：必须创建param（即使为空数组）和flag
+                        if (config.param === undefined) {
+                            config.param = [];
+                        }
+                        // 🔧 新增：初始化关键字检索开关（默认为关闭，即 false）
+                        if (config.keyword_filter_enabled === undefined) {
+                            config.keyword_filter_enabled = false;
+                        }
+                        // 🔧 修改：如果开关关闭，强制 flag=0；如果开关开启，根据关键字数量设置 flag
+                        if (config.flag === undefined) {
+                            if (config.keyword_filter_enabled) {
+                                config.flag = config.param.length > 0 ? 1 : 0;
+                            } else {
+                                config.flag = 0; // 开关关闭时，flag 必须为 0
+                                // 🔧 修复：不清空关键字，保留存储的关键字
+                            }
+                        } else if (!config.keyword_filter_enabled) {
+                            // 🔧 修复：如果开关关闭，只设置 flag=0，不清空存储的关键字
+                            config.flag = 0;
+                        }
+                        if (Object.keys(config).length > 0) {
+                            saveHookConfig(script.id, config);
+                        }
+                    } else {
+                        // has_Param=0：必须创建flag=0
+                        if (config.flag === undefined) {
+                            config.flag = 0;
+                            saveHookConfig(script.id, config);
+                        }
+                    }
+                }
+                
+                const scriptItem = createHookScriptItem(script, isEnabled, isFixedVariate, hasParam, config);
+                hookContent.appendChild(scriptItem);
+            });
+        });
+    }
+    
+    // 创建Hook脚本项
+    function createHookScriptItem(script, isEnabled, isFixedVariate, hasParam, config) {
+        const scriptItem = document.createElement('div');
+        scriptItem.className = `hook-script-item ${isEnabled ? 'enabled' : 'disabled'}`;
+        scriptItem.dataset.scriptId = script.id;
+        
+        // 获取动态开关（debugger, stack等）
+        const dynamicSwitches = [];
+        Object.keys(script).forEach(key => {
+            if (!['id', 'name', 'description', 'category', 'fixed_variate', 'has_Param', 'parentScript'].includes(key)) {
+                if (script[key] === 1) {
+                    dynamicSwitches.push(key);
+                }
+            }
+        });
+        
+        // 构建输入区域
+        let inputArea = '';
+        if (isFixedVariate) {
+            // 固定变量脚本：显示固定值输入
+            // 优先使用配置中的值，如果没有则使用scripts.json中的默认值
+            const value = config?.value || script.value || '';
+            inputArea = `
+                <div class="hook-input-group">
+                    <label class="hook-input-label">固定值：</label>
+                    <div class="hook-input-wrapper hook-value-input-wrapper">
+                        <input type="text" class="hook-value-input" 
+                               value="${value}" 
+                               placeholder="输入固定值后按Enter保存" 
+                               ${!isEnabled ? 'disabled' : ''}>
+                        <div class="hook-value-tooltip">输入固定值后按Enter保存</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // 非固定变量脚本
+            if (hasParam) {
+                // 支持关键字过滤
+                // 🔧 新增：检查关键字检索开关状态（默认为关闭，即 false）
+                const keywordFilterEnabled = config?.keyword_filter_enabled !== undefined ? config.keyword_filter_enabled : false;
+                
+                // 🔧 修改：如果开关关闭，只隐藏关键字显示（UI层面），不清空存储的关键字
+                let keywords = config?.param || [];
+                if (!keywordFilterEnabled) {
+                    keywords = []; // 只用于UI显示，不修改 config.param
+                    if (config && config.flag !== 0) {
+                        config.flag = 0; // 确保 flag=0
+                    }
+                }
+                
+                const keywordList = keywords.map((kw, idx) => `
+                    <div class="keyword-item">
+                        <span>${kw}</span>
+                        <button class="keyword-remove-btn" data-index="${idx}" ${!isEnabled || !keywordFilterEnabled ? 'disabled' : ''}>×</button>
+                    </div>
+                `).join('');
+                
+                inputArea = `
+                    <div class="hook-input-group">
+                        <div class="hook-input-label-row">
+                            <label class="hook-input-label">关键字：</label>
+                            <div class="hook-keyword-filter-switch">
+                                <label class="hook-keyword-filter-switch-label">
+                                    <input type="checkbox" class="hook-keyword-filter-checkbox" ${keywordFilterEnabled ? 'checked' : ''} ${!isEnabled ? 'disabled' : ''} data-script-id="${script.id}">
+                                    <span class="hook-keyword-filter-slider"></span>
+                                </label>
+                                <span class="hook-keyword-filter-label-text">检索关键字</span>
+                            </div>
+                        </div>
+                        <div class="hook-keywords-container ${!keywordFilterEnabled ? 'keyword-filter-disabled' : ''}">
+                            ${keywordList}
+                            <div class="hook-input-wrapper">
+                                <input type="text" class="hook-keyword-input" 
+                                       placeholder="输入关键字后按Enter添加" 
+                                       ${!isEnabled || !keywordFilterEnabled ? 'disabled' : ''}>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 不支持关键字过滤，不显示输入框
+                inputArea = '';
+            }
+        }
+        
+        // 构建动态开关
+        const switchesHtml = dynamicSwitches.map(switchKey => {
+            const switchValue = config?.[switchKey] || 0;
+            return `
+                <button class="hook-switch-btn ${switchValue === 1 ? 'active' : ''}" 
+                        data-switch="${switchKey}" 
+                        ${!isEnabled ? 'disabled' : ''}>
+                    ${switchKey}
+                </button>
+            `;
+        }).join('');
+        
+        scriptItem.innerHTML = `
+            <div class="hook-script-header">
+                <div class="hook-script-name">${script.name}</div>
+                <div class="vue-script-info">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <div class="tooltip">${script.description || '暂无描述'}</div>
+                </div>
+                <label class="hook-main-switch">
+                    <input type="checkbox" ${isEnabled ? 'checked' : ''} data-id="${script.id}">
+                    <span class="hook-slider"></span>
+                </label>
+            </div>
+            ${inputArea}
+            <div class="hook-script-actions">
+                <span class="hook-action-label">开启</span>
+                ${switchesHtml}
+            </div>
+        `;
+        
+        // 绑定事件
+        const checkbox = scriptItem.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener('change', (e) => {
+            handleHookScriptToggle(script, e.target.checked, scriptItem);
+        });
+        
+        // 固定值输入框事件（使用Enter键保存）
+        if (isFixedVariate) {
+            const valueInput = scriptItem.querySelector('.hook-value-input');
+            const tooltip = scriptItem.querySelector('.hook-value-tooltip');
+            const inputWrapper = scriptItem.querySelector('.hook-value-input-wrapper');
+            
+            // 获得焦点时显示提示框
+            valueInput.addEventListener('focus', () => {
+                inputWrapper.classList.add('show-tooltip');
+            });
+            
+            // 失去焦点时隐藏提示框
+            valueInput.addEventListener('blur', () => {
+                inputWrapper.classList.remove('show-tooltip');
+            });
+            
+            valueInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && isEnabled) {
+                    const value = e.target.value.trim();
+                    if (value) {
+                        // 保存固定值
+                        saveHookConfigValue(script.id, value);
+                        showToast('已保存');
+                    } else {
+                        // 如果输入为空，清空固定值
+                        saveHookConfigValue(script.id, '');
+                        showToast('已清空');
+                    }
+                }
+            });
+        }
+        
+        // 关键字输入框事件（非固定变量且支持关键字）
+        if (!isFixedVariate && hasParam) {
+            const keywordInput = scriptItem.querySelector('.hook-keyword-input');
+            const keywordsContainer = scriptItem.querySelector('.hook-keywords-container');
+            const keywordFilterCheckbox = scriptItem.querySelector('.hook-keyword-filter-checkbox');
+            
+            // 🔧 新增：关键字检索开关切换事件
+            if (keywordFilterCheckbox) {
+                keywordFilterCheckbox.addEventListener('change', (e) => {
+                    handleKeywordFilterToggle(script.id, e.target.checked, scriptItem, isEnabled);
+                });
+            }
+            
+            keywordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    // 🔧 修改：检查开关状态
+                    loadHookConfig(script.id).then(config => {
+                        if (config?.keyword_filter_enabled) {
+                            addKeyword(script.id, e.target.value.trim(), keywordsContainer, isEnabled);
+                            e.target.value = '';
+                        }
+                    });
+                }
+            });
+            
+            // 绑定删除关键字按钮
+            scriptItem.querySelectorAll('.keyword-remove-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    // 🔧 修改：检查开关状态
+                    loadHookConfig(script.id).then(config => {
+                        if (config?.keyword_filter_enabled) {
+                            const index = parseInt(e.target.dataset.index);
+                            removeKeyword(script.id, index, keywordsContainer, isEnabled);
+                        }
+                    });
+                });
+            });
+        }
+        
+        // 动态开关事件
+        scriptItem.querySelectorAll('.hook-switch-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (isEnabled) {
+                    const switchKey = e.target.dataset.switch;
+                    // 🔧 修复：根据按钮的当前状态（active类）来判断当前值，而不是依赖闭包中的config
+                    const isActive = e.target.classList.contains('active');
+                    const newValue = isActive ? 0 : 1;
+                    toggleHookSwitch(script.id, switchKey, newValue, e.target);
+                }
+            });
+        });
+        
+        return scriptItem;
+    }
+    
+    // 加载Hook脚本配置
+    function loadHookConfig(scriptId) {
+        return new Promise((resolve) => {
+            const configKey = `${scriptId}_config`;
+            chrome.storage.local.get([configKey], (result) => {
+                resolve(result[configKey] || {});
+            });
+        });
+    }
+    
+    // 保存Hook脚本配置
+    function saveHookConfig(scriptId, config) {
+        const configKey = `${scriptId}_config`;
+        chrome.storage.local.set({
+            [configKey]: config
+        }, () => {
+            // 🔧 修改：用户修改配置时只保存到chrome.storage.local，不发送消息
+            // 等下次刷新页面后，content.js会在页面加载时自动同步并发送消息
+        });
+    }
+    
+    // 保存固定值
+    function saveHookConfigValue(scriptId, value) {
+        loadHookConfig(scriptId).then(config => {
+            config.value = value;
+            saveHookConfig(scriptId, config);
+        });
+    }
+    
+    // 🔧 新增：处理关键字检索开关切换
+    function handleKeywordFilterToggle(scriptId, enabled, scriptItem, isEnabled) {
+        loadHookConfig(scriptId).then(config => {
+            config.keyword_filter_enabled = enabled;
+            
+            if (!enabled) {
+                // 🔧 修改：关闭开关时，只设置 flag=0，不清空存储的关键字
+                config.flag = 0;
+            } else {
+                // 开启开关：根据关键字数量设置 flag
+                if (!config.param) {
+                    config.param = [];
+                }
+                config.flag = config.param.length > 0 ? 1 : 0;
+            }
+            
+            saveHookConfig(scriptId, config);
+            
+            // 更新UI状态
+            const keywordsContainer = scriptItem.querySelector('.hook-keywords-container');
+            const keywordInput = scriptItem.querySelector('.hook-keyword-input');
+            const keywordRemoveBtns = scriptItem.querySelectorAll('.keyword-remove-btn');
+            
+            if (enabled) {
+                // 开启：启用输入框和删除按钮，重新显示关键字
+                keywordsContainer.classList.remove('keyword-filter-disabled');
+                if (keywordInput) keywordInput.disabled = !isEnabled;
+                keywordRemoveBtns.forEach(btn => {
+                    btn.disabled = !isEnabled;
+                });
+                
+                // 🔧 修改：重新渲染关键字列表（从存储中恢复）
+                const existingKeywords = config.param || [];
+                const inputWrapper = keywordsContainer.querySelector('.hook-input-wrapper');
+                // 清空现有显示的关键字
+                keywordsContainer.querySelectorAll('.keyword-item').forEach(item => item.remove());
+                // 重新添加关键字
+                existingKeywords.forEach((kw, idx) => {
+                    const keywordItem = document.createElement('div');
+                    keywordItem.className = 'keyword-item';
+                    keywordItem.innerHTML = `
+                        <span>${kw}</span>
+                        <button class="keyword-remove-btn" data-index="${idx}" ${!isEnabled ? 'disabled' : ''}>×</button>
+                    `;
+                    inputWrapper.parentNode.insertBefore(keywordItem, inputWrapper);
+                });
+                
+                // 重新绑定删除按钮事件
+                keywordsContainer.querySelectorAll('.keyword-remove-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        if (isEnabled && config.keyword_filter_enabled) {
+                            const index = parseInt(e.target.dataset.index);
+                            removeKeyword(scriptId, index, keywordsContainer, isEnabled);
+                        }
+                    });
+                });
+            } else {
+                // 🔧 修改：关闭：禁用输入框和删除按钮，隐藏关键字列表（不清空存储）
+                keywordsContainer.classList.add('keyword-filter-disabled');
+                if (keywordInput) keywordInput.disabled = true;
+                keywordRemoveBtns.forEach(btn => {
+                    btn.disabled = true;
+                });
+                
+                // 🔧 修改：只隐藏关键字列表UI，不清空存储
+                const keywordItems = keywordsContainer.querySelectorAll('.keyword-item');
+                keywordItems.forEach(item => item.remove());
+            }
+        });
+    }
+    
+    // 添加关键字
+    function addKeyword(scriptId, keyword, container, isEnabled) {
+        loadHookConfig(scriptId).then(config => {
+            // 🔧 修改：检查开关状态
+            if (!config.keyword_filter_enabled) {
+                return; // 开关关闭时不允许添加关键字
+            }
+            
+            if (!config.param) {
+                config.param = [];
+            }
+            if (config.param.indexOf(keyword) === -1) {
+                config.param.push(keyword);
+                // 🔧 修改：根据关键字数量设置 flag
+                config.flag = config.param.length > 0 ? 1 : 0;
+                saveHookConfig(scriptId, config);
+                
+                // 更新UI
+                const keywordItem = document.createElement('div');
+                keywordItem.className = 'keyword-item';
+                keywordItem.innerHTML = `
+                    <span>${keyword}</span>
+                    <button class="keyword-remove-btn" data-index="${config.param.length - 1}" ${!isEnabled ? 'disabled' : ''}>×</button>
+                `;
+                const inputWrapper = container.querySelector('.hook-input-wrapper');
+                container.insertBefore(keywordItem, inputWrapper);
+                
+                // 绑定删除事件
+                keywordItem.querySelector('.keyword-remove-btn').addEventListener('click', (e) => {
+                    loadHookConfig(scriptId).then(cfg => {
+                        if (cfg?.keyword_filter_enabled) {
+                            const index = parseInt(e.target.dataset.index);
+                            removeKeyword(scriptId, index, container, isEnabled);
+                        }
+                    });
+                });
+            }
+        });
+    }
+    
+    // 删除关键字
+    function removeKeyword(scriptId, index, container, isEnabled) {
+        loadHookConfig(scriptId).then(config => {
+            // 🔧 修改：检查开关状态
+            if (!config.keyword_filter_enabled) {
+                return; // 开关关闭时不允许删除关键字
+            }
+            
+            if (config.param && config.param.length > index) {
+                config.param.splice(index, 1);
+                // 🔧 修改：根据关键字数量设置 flag
+                if (config.param.length === 0) {
+                    config.flag = 0; // 没有关键字时设置flag为0
+                    config.param = []; // 保持为空数组
+                } else {
+                    config.flag = 1; // 还有关键字时保持 flag=1
+                }
+                saveHookConfig(scriptId, config);
+                
+                // 重新渲染关键字列表
+                const keywordItems = container.querySelectorAll('.keyword-item');
+                keywordItems[index].remove();
+                
+                // 更新所有删除按钮的索引
+                container.querySelectorAll('.keyword-remove-btn').forEach((btn, idx) => {
+                    btn.dataset.index = idx;
+                });
+            }
+        });
+    }
+    
+    // 切换Hook动态开关
+    function toggleHookSwitch(scriptId, switchKey, value, buttonElement) {
+        loadHookConfig(scriptId).then(config => {
+            config[switchKey] = value;
+            saveHookConfig(scriptId, config);
+            
+            // 更新UI
+            if (value === 1) {
+                buttonElement.classList.add('active');
+            } else {
+                buttonElement.classList.remove('active');
+            }
+        });
+    }
+    
+    // 处理Hook脚本开关切换
+    function handleHookScriptToggle(script, isChecked, scriptItem) {
+        if (isChecked) {
+            if (!enabledScripts.includes(script.id)) {
+                enabledScripts.push(script.id);
+            }
+            scriptItem.classList.add('enabled');
+            scriptItem.classList.remove('disabled');
+            
+            // 初始化配置（如果不存在）
+            loadHookConfig(script.id).then(config => {
+                const isFixedVariate = script.fixed_variate === 1;
+                const hasParam = script.has_Param === 1;
+                
+                // 固定变量脚本：如果配置中没有值，使用scripts.json中的默认值
+                if (isFixedVariate) {
+                    // 检查scripts.json中是否有默认值
+                    if (script.value !== undefined && script.value !== null) {
+                        // 如果配置中没有保存的值，使用默认值
+                        if (config.value === undefined || config.value === '') {
+                            config.value = script.value;
+                            saveHookConfig(script.id, config);
+                            
+                            // 更新输入框显示
+                            const valueInput = scriptItem.querySelector('.hook-value-input');
+                            if (valueInput) {
+                                valueInput.value = script.value;
+                            }
+                        }
+                    }
+                } else {
+                    // 非固定变量脚本：确保flag和param存在
+                    if (hasParam) {
+                        // has_Param=1：必须创建param（即使为空数组）和flag
+                        if (config.param === undefined) {
+                            config.param = [];
+                        }
+                        // 🔧 新增：初始化关键字检索开关（默认为关闭，即 false）
+                        if (config.keyword_filter_enabled === undefined) {
+                            config.keyword_filter_enabled = false;
+                        }
+                        // 🔧 修改：如果开关关闭，强制 flag=0；如果开关开启，根据关键字数量设置 flag
+                        if (config.flag === undefined) {
+                            if (config.keyword_filter_enabled) {
+                                config.flag = config.param.length > 0 ? 1 : 0;
+                            } else {
+                                config.flag = 0; // 开关关闭时，flag 必须为 0
+                                // 🔧 修复：不清空关键字，保留存储的关键字
+                            }
+                        } else if (!config.keyword_filter_enabled) {
+                            // 🔧 修复：如果开关关闭，只设置 flag=0，不清空存储的关键字
+                            config.flag = 0;
+                        }
+                    } else {
+                        // has_Param=0：必须创建flag=0，不创建param
+                        if (config.flag === undefined) {
+                            config.flag = 0;
+                        }
+                    }
+                    saveHookConfig(script.id, config);
+                }
+                
+                // 🔧 修改：根据关键字检索开关状态启用/禁用控件
+                if (hasParam && !isFixedVariate) {
+                    const keywordFilterEnabled = config?.keyword_filter_enabled !== undefined ? config.keyword_filter_enabled : false;
+                    const keywordInput = scriptItem.querySelector('.hook-keyword-input');
+                    const keywordRemoveBtns = scriptItem.querySelectorAll('.keyword-remove-btn');
+                    const keywordsContainer = scriptItem.querySelector('.hook-keywords-container');
+                    
+                    if (keywordFilterEnabled) {
+                        // 开启：启用关键字输入框和删除按钮
+                        if (keywordInput) keywordInput.disabled = false;
+                        keywordRemoveBtns.forEach(btn => {
+                            btn.disabled = false;
+                        });
+                        if (keywordsContainer) keywordsContainer.classList.remove('keyword-filter-disabled');
+                    } else {
+                        // 关闭：禁用关键字输入框和删除按钮
+                        if (keywordInput) keywordInput.disabled = true;
+                        keywordRemoveBtns.forEach(btn => {
+                            btn.disabled = true;
+                        });
+                        if (keywordsContainer) keywordsContainer.classList.add('keyword-filter-disabled');
+                    }
+                } else {
+                    // 其他控件正常启用
+                    scriptItem.querySelectorAll('input:not(.hook-keyword-input), button:not(.keyword-remove-btn)').forEach(el => {
+                        el.disabled = false;
+                    });
+                }
+                
+                // 🔧 修改：用户修改配置时只保存到chrome.storage.local，不发送消息
+                // 等下次刷新页面后，content.js会在页面加载时自动同步并发送消息
+            });
+        } else {
+            enabledScripts = enabledScripts.filter(id => id !== script.id);
+            scriptItem.classList.remove('enabled');
+            scriptItem.classList.add('disabled');
+            
+            // 禁用所有控件（除了主开关）
+            scriptItem.querySelectorAll('input:not([type="checkbox"]), button:not(.hook-main-switch input)').forEach(el => {
+                el.disabled = true;
+            });
+        }
+        
+        updateStorage(enabledScripts);
+        
+        // 🆕 如果当前有筛选状态，重新渲染Hook脚本列表以应用筛选
+        if (currentTab === 'hook' && hookFilterState) {
+            const scriptsToShow = getScriptsForCurrentTab();
+            renderHookScripts(scriptsToShow);
+        }
+    }
+    
+    // 同步Hook配置到页面localStorage
+    function syncHookConfigToPage(scriptId, config) {
+        if (!currentTab_obj || !currentTab_obj.id) return;
+        
+        // 获取脚本信息以判断类型
+        const script = allScripts.find(s => s.id === scriptId);
+        if (!script) return;
+        
+        const scriptName = scriptId; // 脚本文件名
+        const baseKey = `Antidebug_breaker_${scriptName}`;
+        
+        // 构建要同步的localStorage数据
+        const localStorageData = {};
+        
+        const isFixedVariate = script.fixed_variate === 1;
+        const hasParam = script.has_Param === 1;
+        
+        // 固定变量脚本
+        if (isFixedVariate) {
+            if (config.value !== undefined) {
+                localStorageData[`${baseKey}_value`] = config.value;
+            }
+        } else {
+            // 非固定变量脚本
+            // has_Param=0：必须创建flag=0
+            // has_Param=1：必须创建flag和param（即使为空数组）
+            if (hasParam) {
+                // 必须创建param（即使为空数组）
+                localStorageData[`${baseKey}_param`] = JSON.stringify(config.param || []);
+                // 必须创建flag
+                localStorageData[`${baseKey}_flag`] = (config.flag !== undefined ? config.flag : (config.param && config.param.length > 0 ? 1 : 0)).toString();
+            } else {
+                // has_Param=0：必须创建flag=0
+                localStorageData[`${baseKey}_flag`] = '0';
+            }
+        }
+        
+        // 动态开关（debugger, stack等）
+        Object.keys(config).forEach(key => {
+            // 🔧 修改：排除 keyword_filter_enabled，它只是插件UI的控制开关，不需要同步到页面
+            if (!['value', 'flag', 'param', 'keyword_filter_enabled'].includes(key)) {
+                localStorageData[`${baseKey}_${key}`] = (config[key] || 0).toString();
+            }
+        });
+        
+        // 发送消息到content script同步
+        chrome.tabs.sendMessage(currentTab_obj.id, {
+            type: 'SYNC_HOOK_CONFIG',
+            scriptId: scriptId,
+            config: localStorageData
+        }).catch(err => {
+            console.warn('同步Hook配置失败:', err);
+        });
     }
 
     // 显示多个Vue实例（新增函数）
