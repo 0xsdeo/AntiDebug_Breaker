@@ -214,7 +214,7 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 
 - <a id="Date.now" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_Date_now.js">Date.now</a>
 
-固定Date.now返回值"
+固定Date.now返回值
 
 ### Vue
 
