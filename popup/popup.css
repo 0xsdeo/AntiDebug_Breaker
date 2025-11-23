@@ -327,6 +327,7 @@ h1 {
     overflow-y: auto;
     padding: 8px;
     margin-top: 5px;
+    align-items: start; /* 🔧 让网格项从顶部对齐，不拉伸到相同高度 */
 }
 
 .script-item {
