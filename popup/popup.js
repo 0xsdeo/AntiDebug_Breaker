@@ -522,7 +522,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="slider"></span>
                         </label>
                     </div>
-                    <div class="script-description">${description}</div>
+                    <div class="script-description-wrapper">
+                        <div class="script-description">${description}</div>
+                        <button class="expand-description-btn" style="display: none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             `;
 
@@ -531,6 +538,56 @@ document.addEventListener('DOMContentLoaded', () => {
             const checkbox = scriptItem.querySelector('input[type="checkbox"]');
             checkbox.addEventListener('change', (e) => {
                 handleScriptToggle(script.id, e.target.checked, scriptItem);
+            });
+
+            // 🆕 检查描述是否需要展开按钮
+            const descriptionEl = scriptItem.querySelector('.script-description');
+            const expandBtn = scriptItem.querySelector('.expand-description-btn');
+            
+            // 使用 setTimeout 确保 DOM 渲染完成后再检查
+            setTimeout(() => {
+                // 临时移除line-clamp限制来准确测量完整高度
+                const originalDisplay = descriptionEl.style.display;
+                const originalWebkitLineClamp = descriptionEl.style.webkitLineClamp;
+                const originalOverflow = descriptionEl.style.overflow;
+                
+                // 临时设置为block以获取完整高度
+                descriptionEl.style.display = 'block';
+                descriptionEl.style.webkitLineClamp = 'unset';
+                descriptionEl.style.overflow = 'visible';
+                
+                const fullHeight = descriptionEl.scrollHeight;
+                
+                // 恢复原始样式
+                descriptionEl.style.display = originalDisplay || '';
+                descriptionEl.style.webkitLineClamp = originalWebkitLineClamp || '';
+                descriptionEl.style.overflow = originalOverflow || '';
+                
+                // 计算3行的高度（line-height * 3）
+                const computedStyle = getComputedStyle(descriptionEl);
+                const lineHeight = parseFloat(computedStyle.lineHeight) || 15.4; // 默认值：11px * 1.4
+                const maxHeight = lineHeight * 3;
+                
+                // 如果完整高度超过3行高度，显示展开按钮
+                if (fullHeight > maxHeight + 2) { // 加2px容差
+                    expandBtn.style.display = 'flex';
+                }
+            }, 10);
+
+            // 🆕 展开/收起按钮点击事件
+            expandBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                const isExpanded = scriptItem.classList.contains('expanded');
+                
+                if (isExpanded) {
+                    // 收起
+                    scriptItem.classList.remove('expanded');
+                    expandBtn.querySelector('svg').style.transform = 'rotate(0deg)';
+                } else {
+                    // 展开
+                    scriptItem.classList.add('expanded');
+                    expandBtn.querySelector('svg').style.transform = 'rotate(180deg)';
+                }
             });
         });
     }

@@ -223,7 +223,7 @@ h1 {
     padding: 4px 12px;
     font-size: 12px;
     font-weight: 500;
-    color: var(--on-surface-secondary);
+    color: var(--on-surface);
     background: transparent;
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -349,15 +349,6 @@ h1 {
     transform: translateY(-3px);
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--primary);
     z-index: 5;
-    height: auto;  /* ✅ 悬停时自动高度 */
-    overflow: visible;  /* ✅ 允许内容溢出 */
-}
-
-/* ✅ 悬停时显示完整描述 */
-.script-item:hover .script-description {
-    -webkit-line-clamp: unset;
-    display: block;
-    overflow: visible;
 }
 
 .script-content {
@@ -380,6 +371,12 @@ h1 {
     flex: 1;
 }
 
+.script-description-wrapper {
+    position: relative;
+    padding-bottom: 0;
+    min-height: 0;
+}
+
 .script-description {
     color: var(--on-surface-secondary);
     font-size: 11px;
@@ -388,6 +385,71 @@ h1 {
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
+    padding-right: 22px; /* 为展开按钮留出空间 */
+}
+
+/* 🆕 展开状态的描述 */
+.script-item.expanded .script-description {
+    -webkit-line-clamp: unset;
+    display: block;
+    overflow: visible;
+}
+
+/* 🆕 展开状态的脚本项 */
+.script-item.expanded {
+    height: auto;
+    overflow: visible;
+}
+
+/* 🆕 展开按钮 - 默认在描述右下角 */
+.expand-description-btn {
+    position: absolute;
+    bottom: -2px;
+    right: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--on-surface-secondary);
+    transition: all 0.2s ease;
+    padding: 0;
+    z-index: 2;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.expand-description-btn:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #ffffff;
+}
+
+.expand-description-btn svg {
+    transition: transform 0.2s ease;
+    transform: rotate(0deg);
+}
+
+/* 🆕 展开状态下按钮移到描述下方 */
+.script-item.expanded .script-description-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.script-item.expanded .expand-description-btn {
+    position: relative;
+    bottom: auto;
+    right: auto;
+    margin-top: 6px;
+    display: flex;
+}
+
+.script-item.expanded .expand-description-btn svg {
+    transform: rotate(180deg);
 }
 
 .switch {
