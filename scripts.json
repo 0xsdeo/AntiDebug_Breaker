@@ -42,18 +42,6 @@
     "category": "antidebug"
   },
   {
-    "id": "hook_Promise",
-    "name": "Hook Promise",
-    "description": "将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
-    "category": "antidebug"
-  },
-  {
-    "id": "location_href",
-    "name": "页面跳转JS代码定位通杀方案",
-    "description": "当网站进行跳转时，将会触发本脚本的debugger，从而可以快速定位到跳转的JS代码位置，进而实现手动替换绕过跳转。注：1.使用本脚本时必须开启F12。2.开启本脚本不代表可以清除跳转代码，只是起一个定位的作用。",
-    "category": "antidebug"
-  },
-  {
     "id": "Hook_CryptoJS",
     "name": "Hook CryptoJS",
     "description": "Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、SHA等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的加密算法，如果确认使用的是CryptoJS库进行的加密而无法打印可联系我。",
@@ -63,6 +51,12 @@
     "id": "Hook_JSEncrypt",
     "name": "Hook JSEncrypt RSA",
     "description": "Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。",
+    "category": "antidebug"
+  },
+  {
+    "id": "location_href",
+    "name": "页面跳转JS代码定位通杀方案",
+    "description": "当网站进行跳转时，将会触发本脚本的debugger，从而可以快速定位到跳转的JS代码位置，进而实现手动替换绕过跳转。注：1.使用本脚本时必须开启F12。2.开启本脚本不代表可以清除跳转代码，只是起一个定位的作用。",
     "category": "antidebug"
   },
   {
@@ -224,6 +218,16 @@
     "id": "hook_json_stringify",
     "name": "JSON.stringify",
     "description": "开启本脚本后默认将在控制台打印传入JSON.stringify的值。",
+    "category": "hook",
+    "fixed_variate" : 0,
+    "has_Param" : 0,
+    "debugger" : 1,
+    "stack": 1
+  },
+  {
+    "id": "hook_Promise",
+    "name": "Promise",
+    "description": "将在控制台打印Promise的resolve参数，可快速定位异步回调位置。",
     "category": "hook",
     "fixed_variate" : 0,
     "has_Param" : 0,
