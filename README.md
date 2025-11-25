@@ -25,7 +25,7 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 ## 脚本使用场景
 
->反调试
+>AntiDebug
 
 - <a href="#Bypass_Debugger">Bypass Debugger</a>
 - <a href="#hook_log">hook log</a>
