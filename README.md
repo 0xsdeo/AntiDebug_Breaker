@@ -55,6 +55,7 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 - <a href="#fetch">fetch</a>
 - <a href="#JSON.parse">JSON.parse</a>
 - <a href="#JSON.stringify">JSON.stringify</a>
+- <a href="#Promise">Promise</a>
 - <a href="#Math.random">Math.random</a>
 - <a href="#Date.now">Date.now</a>
 
@@ -209,6 +210,10 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 - <a id="JSON.stringify" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_json_stringify.js">JSON.stringify</a>
 
 开启本脚本后默认将在控制台打印传入JSON.stringify的值。
+
+- <a id="Promise" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_Promise.js">Promise</a>
+
+将在控制台打印Promise的resolve参数，可快速定位异步回调位置。
 
 - <a id="Math.random" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_random.js">Math.random</a>
 
