@@ -37,7 +37,6 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 - <a href="#location_href">页面跳转JS代码定位通杀方案</a>
 - <a href="#Hook_CryptoJS">Hook CryptoJS</a>
 - <a href="#Hook_JSEncrypt_RSA">Hook JSEncrypt RSA</a>
-- <a href="#Hook_Promise">Hook Promise</a>
 
 >Hook
 
@@ -147,12 +146,6 @@ Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、
 
 Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。
 
-- <a id="Hook_Promise" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_Promise.js">Hook Promise</a>
-
-本脚本为<a href="https://github.com/lyousan">Yosan</a>师傅所作。
-
-Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异步回调位置。
-
 ### Hook
 
 - <a id="document.cookie" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_cookie.js">document.cookie</a>
@@ -212,6 +205,8 @@ Hook Promise，将在控制台打印Promise的resolve参数，可快速定位异
 开启本脚本后默认将在控制台打印传入JSON.stringify的值。
 
 - <a id="Promise" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_Promise.js">Promise</a>
+
+本脚本为<a href="https://github.com/lyousan">Yosan</a>师傅所作。
 
 将在控制台打印Promise的resolve参数，可快速定位异步回调位置。
 
