@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTab_obj = null;
     let cachedVueDataList = []; // 在popup中缓存所有Vue实例数据（改为数组）
     let currentInstanceIndex = 0; // 当前选中的实例索引
+    let isFirstVueDataDisplay = true; // 🆕 标记是否是首次显示Vue路由数据
 
     // 🆕 全局模式状态管理
     let isGlobalMode = false; // 当前是否为全局模式
@@ -1691,12 +1692,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             // 🆕 渲染完成后，检查是否有保存的路由并滚动到该位置
+            // 仅当首次打开插件时执行跳转，切换脚本时不执行
             // 仅当开启了Get_Vue_0或Get_Vue_1脚本且成功获取到路由数据时才执行
             // 🔧 如果用户正在搜索，则不执行跳转
             const hasVueScript = enabledScripts.includes('Get_Vue_0') || enabledScripts.includes('Get_Vue_1');
             const isSearching = vueRouteSearchInput && vueRouteSearchInput.value.trim() !== '';
             
-            if (hasVueScript && vueRouterInfo && vueRouterInfo.routes && vueRouterInfo.routes.length > 0 && !isSearching) {
+            // 🔧 仅在首次显示Vue路由数据时执行跳转
+            if (isFirstVueDataDisplay && hasVueScript && vueRouterInfo && vueRouterInfo.routes && vueRouterInfo.routes.length > 0 && !isSearching) {
                 chrome.storage.local.get([`${hostname}_last_opened_route`], (result) => {
                     const lastOpenedRoute = result[`${hostname}_last_opened_route`];
                     if (lastOpenedRoute) {
@@ -1725,6 +1728,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 });
+                // 标记已经执行过跳转，后续不再执行
+                isFirstVueDataDisplay = false;
             }
         };
 
