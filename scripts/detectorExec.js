@@ -1777,6 +1777,10 @@
         const devtools = window.__VUE_DEVTOOLS_GLOBAL_HOOK__;
         Vue.config.devtools = true;
         devtools.emit('init', Vue);
+        try {
+            const version = Vue.version || 'unknown';
+            console.log(`[AntiDebug Breaker] Vue Devtools已开启，Vue版本：${version}`);
+        } catch (e) { }
         return true;
     }
     function crackVue3() {
@@ -1792,6 +1796,9 @@
             Comment: Symbol.for('v-cmt'),
             Static: Symbol.for('v-stc'),
         });
+        try {
+            console.log(`[AntiDebug Breaker] Vue Devtools已开启，Vue版本：${version || 'unknown'}`);
+        } catch (e) { }
         // TODO How to trigger the devtools refresh when vue instance changed.
         // Maybe `devtools.emit("flush")` can be used, but i don't know when, where and how to use it.
         try {
