@@ -1,6 +1,6 @@
 {
   "name": "AntiDebug Breaker",
-  "version": "2.9",
+  "version": "3.0.0",
   "description": "反调试破除者",
   "manifest_version": 3,
   "permissions": [
