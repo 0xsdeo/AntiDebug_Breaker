@@ -1675,11 +1675,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 打开按钮
                 const openBtn = routeItem.querySelector('.open-btn');
                 openBtn.addEventListener('click', () => {
+                    // 🆕 保存当前打开的路由URL到存储（仅当开启了Get_Vue_0或Get_Vue_1脚本时）
+                    const hasVueScript = enabledScripts.includes('Get_Vue_0') || enabledScripts.includes('Get_Vue_1');
+                    if (hasVueScript && vueRouterInfo && vueRouterInfo.routes && vueRouterInfo.routes.length > 0) {
+                        const storageKey = `${hostname}_last_opened_route`;
+                        chrome.storage.local.set({
+                            [storageKey]: fullUrl
+                        });
+                    }
+                    
                     chrome.tabs.update(currentTab_obj.id, {
                         url: fullUrl
                     });
                 });
             });
+            
+            // 🆕 渲染完成后，检查是否有保存的路由并滚动到该位置
+            // 仅当开启了Get_Vue_0或Get_Vue_1脚本且成功获取到路由数据时才执行
+            // 🔧 如果用户正在搜索，则不执行跳转
+            const hasVueScript = enabledScripts.includes('Get_Vue_0') || enabledScripts.includes('Get_Vue_1');
+            const isSearching = vueRouteSearchInput && vueRouteSearchInput.value.trim() !== '';
+            
+            if (hasVueScript && vueRouterInfo && vueRouterInfo.routes && vueRouterInfo.routes.length > 0 && !isSearching) {
+                chrome.storage.local.get([`${hostname}_last_opened_route`], (result) => {
+                    const lastOpenedRoute = result[`${hostname}_last_opened_route`];
+                    if (lastOpenedRoute) {
+                        // 检查该路由是否在当前显示的路由列表中
+                        const targetRouteItem = Array.from(routesListContainer.querySelectorAll('.route-item')).find(item => {
+                            const openBtn = item.querySelector('.open-btn');
+                            return openBtn && openBtn.dataset.url === lastOpenedRoute;
+                        });
+                        
+                        if (targetRouteItem) {
+                            // 路由存在，直接跳转到该位置并高亮闪烁
+                            setTimeout(() => {
+                                targetRouteItem.scrollIntoView({
+                                    behavior: 'auto',
+                                    block: 'center'
+                                });
+                                
+                                // 🆕 添加闪烁动画类，闪烁两次
+                                targetRouteItem.classList.add('highlight-last-opened');
+                                
+                                // 动画完成后移除类（1秒 * 2次 = 2秒）
+                                setTimeout(() => {
+                                    targetRouteItem.classList.remove('highlight-last-opened');
+                                }, 2000);
+                            }, 100);
+                        }
+                    }
+                });
+            }
         };
 
         // 搜索功能

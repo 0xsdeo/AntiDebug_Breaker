@@ -778,6 +778,23 @@ input:checked + .slider:before {
     background: var(--surface-light);
 }
 
+/* 🆕 路由框闪烁动画（用于高亮上次跳转的路由） */
+@keyframes route-highlight {
+    0%, 100% {
+        border-color: var(--border);
+        background: var(--surface);
+    }
+    25%, 75% {
+        border-color: var(--primary-light);
+        background: var(--primary);
+        box-shadow: 0 0 15px rgba(66, 133, 244, 0.6);
+    }
+}
+
+.route-item.highlight-last-opened {
+    animation: route-highlight 1s ease-in-out 2;
+}
+
 .route-url {
     flex: 1;
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
