@@ -18,6 +18,12 @@ JS逆向快速定位加密位置以及获取加密密文等加密参数：https:
 
 ## 插件安装
 
+### 谷歌插件应用商店安装
+
+地址：https://chromewebstore.google.com/detail/antidebug-breaker/opkclndfcbafdaecbbaklefnaadopcln
+
+### 手动安装
+
 将源码下载到本地后打开chrome，访问`chrome://extensions/`，点击左上角的`加载未打包的扩展程序`，然后选中源码文件夹即可：
 ![1753669187234](image/README/1753669187234.png)
 
@@ -254,6 +260,8 @@ Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、
 ## Contact
 
 如有bug或其他问题可提交issues，或者关注公众号Spade sec联系我。
+
+如需添加交流群可加我微信：I-0xsdeo。
 
 ## Star History
 [![Stargazers over time](https://starchart.cc/0xsdeo/AntiDebug_Breaker.svg?variant=adaptive)](https://starchart.cc/0xsdeo/AntiDebug_Breaker)
