@@ -263,5 +263,9 @@ Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、
 
 如需添加交流群可加我微信：I-0xsdeo。
 
+## 使用许可
+
+本工具禁止未授权商业用途，禁止二次开发后进行未授权商业用途。
+
 ## Star History
 [![Stargazers over time](https://starchart.cc/0xsdeo/AntiDebug_Breaker.svg?variant=adaptive)](https://starchart.cc/0xsdeo/AntiDebug_Breaker)
