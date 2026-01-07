@@ -16,6 +16,8 @@ Hook CryptoJS对称加密 快速出key、iv、mode、padding：https://www.bilib
 
 JS逆向快速定位加密位置以及获取加密密文等加密参数：https://www.bilibili.com/video/BV1cRyXBaEJX
 
+SpiderDome 靶场练习网站:https://www.spiderdemo.cn
+
 ## 插件安装
 
 ### 谷歌插件应用商店安装
