@@ -43,6 +43,7 @@ SpiderDemo 靶场练习网站：https://www.spiderdemo.cn
 - <a href="#location_href">页面跳转JS代码定位通杀方案</a>
 - <a href="#Hook_CryptoJS">Hook CryptoJS</a>
 - <a href="#Hook_JSEncrypt_RSA">Hook JSEncrypt RSA</a>
+- <a href="#Hook_SMcrypto">Hook SM-crypto</a>
 
 >Hook
 
@@ -151,6 +152,10 @@ Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、
 - <a id="Hook_JSEncrypt_RSA" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_JSEncrypt.js">Hook JSEncrypt RSA</a>
 
 Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。
+
+- <a id="Hook_SMcrypto" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_SMcrypto.js">Hook SM-crypto</a>
+
+Hook SM-crypto加密库当中的 SM2、SM3、SM4算法。如果未打印请自查目标站点是否清除了console.log或是否使用的是sm-crypto的加密算法，如果清除了console.log可以尝试使用hook log脚本防止js重写log方法，如果确认使用的是sm-crypto库进行的加密而无法打印可联系我。
 
 ### Hook
 
