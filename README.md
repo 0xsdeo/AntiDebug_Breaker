@@ -155,6 +155,8 @@ Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、
 
 - <a id="Hook_SMcrypto" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_SMcrypto.js">Hook SM-crypto</a>
 
+本脚本思路与初始形态为<a href="https://github.com/Hosinoharu">魔法少女☆ホシノ</a>所作。
+
 Hook SM-crypto加密库当中的 SM2、SM3、SM4算法。如果未打印请自查目标站点是否清除了console.log或是否使用的是sm-crypto的加密算法，如果清除了console.log可以尝试使用hook log脚本防止js重写log方法，如果确认使用的是sm-crypto库进行的加密而无法打印可联系我。
 
 ### Hook
@@ -260,7 +262,7 @@ Hook SM-crypto加密库当中的 SM2、SM3、SM4算法。如果未打印请自�
 
 ## 致谢
 
-致谢个人：<a href="https://github.com/CC11001100">CC11001100</a>、<a href="https://github.com/mingheyan">Dexter</a>、<a href="https://github.com/d1sbb">d1sbb</a>、<a href="https://github.com/lyousan">Yosan</a>
+致谢个人：<a href="https://github.com/Hosinoharu">魔法少女☆ホシノ</a>、<a href="https://github.com/CC11001100">CC11001100</a>、<a href="https://github.com/mingheyan">Dexter</a>、<a href="https://github.com/d1sbb">d1sbb</a>、<a href="https://github.com/lyousan">Yosan</a>
 
 本项目参考过、引用过或正在引用的优质项目：<a href="https://github.com/Ad1euDa1e/VueCrack">VueCrack</a>、<a href="https://github.com/keecth/FakeCryptoJS">FakeCryptoJS</a>、<a href="https://github.com/hzmming/vue-force-dev">vue-force-dev</a>
 
