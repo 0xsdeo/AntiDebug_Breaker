@@ -181,7 +181,7 @@
                 raw_doEncrypt = exports.doEncrypt;
                 exports.doEncrypt = my_doEncrypt;
             }
-            if (exports.doEncrypt && has_SM2_Prop(exports)) {
+            if (exports.doDecrypt && has_SM2_Prop(exports)) {
                 raw_doDecrypt = exports.doDecrypt;
                 exports.doDecrypt = my_doDecrypt;
             }
