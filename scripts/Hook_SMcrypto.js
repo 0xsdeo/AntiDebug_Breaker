@@ -23,15 +23,12 @@
 
     function has_SM2_Prop(obj) {
         const requiredProps = [
-            'comparePublicKeyHex',
-            'compressPublicKeyHex',
             'doDecrypt',
             'doEncrypt',
             'doSignature',
             'doVerifySignature',
             'generateKeyPairHex',
-            'getPoint',
-            'verifyPublicKey'
+            'getPoint'
         ];
 
         // 检查对象是否存在且为对象类型
