@@ -106,6 +106,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const GLOBAL_MODE_KEY = 'antidebug_mode';
     const GLOBAL_SCRIPTS_KEY = 'global_scripts';
 
+    // 🆕 脚本组合转换函数：将合并脚本展开为独立脚本（移到前面以便其他函数使用）
+    const expandCombinedScripts = (scriptIds) => {
+        const expanded = [...scriptIds];
+        
+        // 检测 Hook_JSEncrypt_SMcrypto 并展开为两个独立脚本
+        const combinedIndex = expanded.indexOf('Hook_JSEncrypt_SMcrypto');
+        if (combinedIndex !== -1) {
+            // 移除合并脚本
+            expanded.splice(combinedIndex, 1);
+            // 添加两个独立脚本（如果不存在）
+            if (!expanded.includes('Hook_SMcrypto')) {
+                expanded.push('Hook_SMcrypto');
+            }
+            if (!expanded.includes('Hook_JSEncrypt')) {
+                expanded.push('Hook_JSEncrypt');
+            }
+        }
+        
+        return expanded;
+    };
+
     // 🆕 初始化全局模式状态
     function initializeGlobalMode() {
         chrome.storage.local.get([GLOBAL_MODE_KEY, GLOBAL_SCRIPTS_KEY], (result) => {
@@ -113,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const mode = result[GLOBAL_MODE_KEY] || 'standard';
             isGlobalMode = (mode === 'global');
             
-            // 获取全局脚本列表，默认为空数组
+            // 🆕 获取全局脚本列表并展开合并脚本
             globalEnabledScripts = result[GLOBAL_SCRIPTS_KEY] || [];
             
             // 如果没有模式键值，创建默认配置
@@ -127,9 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // 更新UI状态
             updateModeUI();
             
-            // 如果是全局模式，使用全局脚本列表
+            // 如果是全局模式，使用全局脚本列表（不展开，因为这是用于存储的）
             if (isGlobalMode) {
-                enabledScripts = [...globalEnabledScripts];
+                // 注意：这里不展开，因为 globalEnabledScripts 用于存储
+                // UI 显示时会在 setTimeout 中展开
             }
         });
     }
@@ -155,8 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (isGlobalMode) {
-            // 切换到全局模式
-            enabledScripts = [...globalEnabledScripts];
+            // 切换到全局模式（展开合并脚本）
+            enabledScripts = expandCombinedScripts([...globalEnabledScripts]);
         } else {
             // 切换到标准模式
             // 检查当前URL是否为web网站
@@ -166,8 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 读取当前域名的脚本配置
                 chrome.storage.local.get([hostname], (result) => {
                     if (result[hostname]) {
-                        // 存在配置，使用该配置
-                        enabledScripts = result[hostname] || [];
+                        // 存在配置，使用该配置（展开合并脚本）
+                        enabledScripts = expandCombinedScripts(result[hostname] || []);
                     } else {
                         // 不存在配置，创建空配置
                         enabledScripts = [];
@@ -207,10 +229,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 🆕 更新脚本注册（通知background）
     function updateScriptRegistration() {
+        // 发送前先合并脚本组合，确保注册的是合并版而非独立版
+        const scriptsToRegister = combineCombinableScripts(enabledScripts);
         chrome.runtime.sendMessage({
             type: 'update_scripts_registration',
             hostname: isGlobalMode ? '*' : hostname,
-            enabledScripts: enabledScripts,
+            enabledScripts: scriptsToRegister,
             isGlobalMode: isGlobalMode
         });
     }
@@ -294,7 +318,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         // 标准模式：获取该域名下的启用状态
                         chrome.storage.local.get([hostname, 'last_active_tab'], (result) => {
-                            enabledScripts = result[hostname] || [];
+                            // 🆕 展开合并脚本
+                            enabledScripts = expandCombinedScripts(result[hostname] || []);
 
                             // 恢复上次打开的板块
                             if (result.last_active_tab) {
@@ -342,7 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             }
                             
-                            enabledScripts = [...globalEnabledScripts];
+                            // 🆕 展开合并脚本
+                            enabledScripts = expandCombinedScripts([...globalEnabledScripts]);
                             renderCurrentTab();
                             
                             // 检查Vue脚本
@@ -449,7 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 根据当前标签获取要显示的脚本
     function getScriptsForCurrentTab() {
-        return allScripts.filter(script => script.category === currentTab);
+        return allScripts.filter(script => 
+            script.category === currentTab && 
+            !script.hidden  // 🆕 过滤隐藏脚本
+        );
     }
 
     // 渲染当前标签的内容
@@ -1874,19 +1903,63 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStorage(enabledScripts);
     }
 
+    // 🆕 脚本组合检测函数：将独立脚本合并为组合脚本
+    function combineCombinableScripts(scriptIds) {
+        const combined = [...scriptIds];
+        
+        // 检测是否同时存在 Hook_SMcrypto 和 Hook_JSEncrypt
+        const hasSM = combined.includes('Hook_SMcrypto');
+        const hasJSE = combined.includes('Hook_JSEncrypt');
+        const hasCombined = combined.includes('Hook_JSEncrypt_SMcrypto');
+        
+        if (hasSM && hasJSE && !hasCombined) {
+            // 同时存在两个独立脚本，且不存在合并脚本
+            // 移除两个独立脚本
+            const smIndex = combined.indexOf('Hook_SMcrypto');
+            const jseIndex = combined.indexOf('Hook_JSEncrypt');
+            
+            // 从后往前删除，避免索引变化
+            if (smIndex > jseIndex) {
+                combined.splice(smIndex, 1);
+                combined.splice(jseIndex, 1);
+            } else {
+                combined.splice(jseIndex, 1);
+                combined.splice(smIndex, 1);
+            }
+            
+            // 添加合并脚本
+            combined.push('Hook_JSEncrypt_SMcrypto');
+        } else if (!hasSM && !hasJSE && hasCombined) {
+            // 两个独立脚本都不存在了，移除合并脚本
+            const combinedIndex = combined.indexOf('Hook_JSEncrypt_SMcrypto');
+            combined.splice(combinedIndex, 1);
+        } else if ((hasSM && !hasJSE) || (!hasSM && hasJSE)) {
+            // 只有一个独立脚本存在，需要移除合并脚本（如果有）
+            const combinedIndex = combined.indexOf('Hook_JSEncrypt_SMcrypto');
+            if (combinedIndex !== -1) {
+                combined.splice(combinedIndex, 1);
+            }
+        }
+        
+        return combined;
+    }
+
     // 🆕 统一的存储更新函数（支持全局模式）
     function updateStorage(enabled) {
+        // 🆕 检测并合并脚本组合
+        const scriptsToStore = combineCombinableScripts(enabled);
+        
         if (isGlobalMode) {
             // 全局模式：更新全局脚本列表
-            globalEnabledScripts = [...enabled];
+            globalEnabledScripts = [...scriptsToStore];
             chrome.storage.local.set({
-                [GLOBAL_SCRIPTS_KEY]: globalEnabledScripts
+                [GLOBAL_SCRIPTS_KEY]: scriptsToStore
             }, () => {
                 // 通知后台更新脚本注册（全局模式）
                 chrome.runtime.sendMessage({
                     type: 'update_scripts_registration',
                     hostname: '*',
-                    enabledScripts: enabled,
+                    enabledScripts: scriptsToStore,
                     isGlobalMode: true
                 });
 
@@ -1894,23 +1967,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 chrome.tabs.sendMessage(currentTab_obj.id, {
                     type: 'scripts_updated',
                     hostname: hostname,
-                    enabledScripts: enabled
+                    enabledScripts: scriptsToStore
                 });
 
                 // 更新本地状态并重新渲染
-                enabledScripts = enabled;
+                enabledScripts = enabled; // 保持UI状态为展开的
                 renderCurrentTab();
             });
         } else {
             // 标准模式：更新当前域名配置
             chrome.storage.local.set({
-                [hostname]: enabled
+                [hostname]: scriptsToStore
             }, () => {
                 // 通知后台更新脚本注册（标准模式）
                 chrome.runtime.sendMessage({
                     type: 'update_scripts_registration',
                     hostname: hostname,
-                    enabledScripts: enabled,
+                    enabledScripts: scriptsToStore,
                     isGlobalMode: false
                 });
 
@@ -1918,11 +1991,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 chrome.tabs.sendMessage(currentTab_obj.id, {
                     type: 'scripts_updated',
                     hostname: hostname,
-                    enabledScripts: enabled
+                    enabledScripts: scriptsToStore
                 });
 
                 // 更新本地状态并重新渲染
-                enabledScripts = enabled;
+                enabledScripts = enabled; // 保持UI状态为展开的
                 renderCurrentTab();
             });
         }
