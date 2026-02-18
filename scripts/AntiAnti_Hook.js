@@ -2,7 +2,7 @@
 // @name         AntiAnti_Hook
 // @namespace    https://github.com/0xsdeo/Hook_JS
 // @version      v0.1
-// @description  反反Hook检测
+// @description  反Hook检测
 // @author       0xsdeo
 // @match        http://*/*
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
