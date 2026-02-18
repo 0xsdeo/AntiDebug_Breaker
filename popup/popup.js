@@ -86,6 +86,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const globalModeToggle = document.getElementById('global-mode-toggle');
     const modeText = document.querySelector('.mode-text');
 
+    // 反反Hook检测开关DOM元素
+    const antiAntiHookToggle = document.getElementById('antiantiHook-toggle');
+
+    // 辅助配置按钮 & 面板
+    const auxConfigBtn = document.getElementById('aux-config-btn');
+    const auxConfigPanel = document.getElementById('aux-config-panel');
+
+    // 点击按钮切换面板显示
+    if (auxConfigBtn && auxConfigPanel) {
+        auxConfigBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = auxConfigPanel.classList.contains('open');
+            if (isOpen) {
+                auxConfigPanel.classList.remove('open');
+                auxConfigBtn.classList.remove('active');
+            } else {
+                auxConfigPanel.classList.add('open');
+                auxConfigBtn.classList.add('active');
+            }
+        });
+
+        // 点击面板内部不关闭
+        auxConfigPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // 点击外部关闭面板
+        document.addEventListener('click', () => {
+            auxConfigPanel.classList.remove('open');
+            auxConfigBtn.classList.remove('active');
+        });
+    }
+
     let currentTab = 'antidebug'; // 当前选中的标签
     let allScripts = []; // 所有脚本数据
     let enabledScripts = []; // 启用的脚本
@@ -160,6 +193,53 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateModeUI() {
         globalModeToggle.checked = isGlobalMode;
         modeText.textContent = isGlobalMode ? '全局模式' : '标准模式';
+    }
+
+    // 更新反反Hook检测开关UI状态
+    function updateAntiAntiHookToggle() {
+        if (!antiAntiHookToggle) return;
+        const isEnabled = enabledScripts.includes('AntiAnti_Hook');
+        antiAntiHookToggle.checked = isEnabled;
+    }
+
+    // 计算所有已启用脚本的合并Hooks数据并存储
+    function updateMergedHooks(currentEnabledScripts) {
+        if (!allScripts || allScripts.length === 0) return;
+
+        if (!currentEnabledScripts.includes('AntiAnti_Hook')) {
+            chrome.storage.local.remove('antidebug_merged_hooks');
+            return;
+        }
+
+        const merged = { Function: [], Property: [] };
+        let hasHooks = false;
+
+        currentEnabledScripts.forEach(scriptId => {
+            const script = allScripts.find(s => s.id === scriptId);
+            if (script && script.Hooks) {
+                hasHooks = true;
+                if (script.Hooks.Function) {
+                    script.Hooks.Function.forEach(fn => {
+                        if (!merged.Function.includes(fn)) {
+                            merged.Function.push(fn);
+                        }
+                    });
+                }
+                if (script.Hooks.Property) {
+                    script.Hooks.Property.forEach(prop => {
+                        if (!merged.Property.includes(prop)) {
+                            merged.Property.push(prop);
+                        }
+                    });
+                }
+            }
+        });
+
+        if (hasHooks) {
+            chrome.storage.local.set({ antidebug_merged_hooks: merged });
+        } else {
+            chrome.storage.local.remove('antidebug_merged_hooks');
+        }
     }
 
     // 🆕 模式切换处理（修复bug：添加旧模式脚本清理）
@@ -320,6 +400,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         chrome.storage.local.get([hostname, 'last_active_tab'], (result) => {
                             // 🆕 展开合并脚本
                             enabledScripts = expandCombinedScripts(result[hostname] || []);
+                            // 初始化合并Hooks数据
+                            updateMergedHooks(enabledScripts);
 
                             // 恢复上次打开的板块
                             if (result.last_active_tab) {
@@ -369,6 +451,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             // 🆕 展开合并脚本
                             enabledScripts = expandCombinedScripts([...globalEnabledScripts]);
+                            // 初始化合并Hooks数据
+                            updateMergedHooks(enabledScripts);
                             renderCurrentTab();
                             
                             // 检查Vue脚本
@@ -410,6 +494,20 @@ document.addEventListener('DOMContentLoaded', () => {
     globalModeToggle.addEventListener('change', (e) => {
         handleModeToggle(e.target.checked);
     });
+
+    // 反反Hook检测开关事件监听
+    if (antiAntiHookToggle) {
+        antiAntiHookToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!enabledScripts.includes('AntiAnti_Hook')) {
+                    enabledScripts.push('AntiAnti_Hook');
+                }
+            } else {
+                enabledScripts = enabledScripts.filter(id => id !== 'AntiAnti_Hook');
+            }
+            updateStorage(enabledScripts);
+        });
+    }
 
     // 标签切换事件
     tabBtns.forEach(btn => {
@@ -519,6 +617,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 使用缓存的数据显示（改为多实例显示）
             displayMultipleInstances();
         }
+
+        // 每次渲染后同步反反Hook开关状态
+        updateAntiAntiHookToggle();
     }
 
     // 渲染反调试脚本（3列网格）
@@ -1948,6 +2049,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStorage(enabled) {
         // 🆕 检测并合并脚本组合
         const scriptsToStore = combineCombinableScripts(enabled);
+
+        // 更新合并Hooks数据（传入展开后的完整列表）
+        updateMergedHooks(enabled);
         
         if (isGlobalMode) {
             // 全局模式：更新全局脚本列表

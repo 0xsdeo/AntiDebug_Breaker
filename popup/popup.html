@@ -12,18 +12,50 @@
     <div class="container">
         <header>
             <div class="title-container">
-                <!-- 全局/标准模式切换开关 -->
-                <div class="mode-switch-container">
-                    <label class="mode-switch">
-                        <input type="checkbox" id="global-mode-toggle">
-                        <span class="mode-slider"></span>
-                    </label>
-                    <span class="mode-text">标准模式</span>
-                    <div class="mode-tooltip">
-                        开启标准模式/全局模式<br><br>
-                        <strong>标准模式：</strong>插件默认模式，当勾选脚本并刷新网站后，脚本仅会注入到当前网站。<br><br>
-                        <strong>全局模式：</strong>当开启全局模式后，勾选的脚本将注入到每个网站中。<br><br>
-                        注：对于通过file://协议或localhost访问的页面，必须开启全局模式才能注入脚本。
+                <!-- 左上角辅助配置按钮 -->
+                <div class="aux-config-wrapper">
+                    <button class="aux-config-btn" id="aux-config-btn" title="辅助配置">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="4" y1="21" x2="4" y2="14"></line>
+                            <line x1="4" y1="10" x2="4" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12" y2="3"></line>
+                            <line x1="20" y1="21" x2="20" y2="16"></line>
+                            <line x1="20" y1="12" x2="20" y2="3"></line>
+                            <line x1="1" y1="14" x2="7" y2="14"></line>
+                            <line x1="9" y1="8" x2="15" y2="8"></line>
+                            <line x1="17" y1="16" x2="23" y2="16"></line>
+                        </svg>
+                    </button>
+                    <!-- 弹出配置面板 -->
+                    <div class="aux-config-panel" id="aux-config-panel">
+                        <div class="aux-config-panel-arrow"></div>
+                        <!-- 反反Hook检测开关 -->
+                        <div class="antiantiHook-switch-container">
+                            <span class="antiantiHook-text">反Hook检测</span>
+                            <label class="mode-switch">
+                                <input type="checkbox" id="antiantiHook-toggle">
+                                <span class="mode-slider"></span>
+                            </label>
+                            <div class="antiantiHook-tooltip">
+                                开启反Hook检测功能后，可以反制一些常见的Hook检测手段。<br><br>
+                                <strong>注意：</strong>本脚本目前尚未成熟，可能存在一些未知的bug，请谨慎使用。
+                            </div>
+                        </div>
+                        <!-- 全局/标准模式切换开关 -->
+                        <div class="mode-switch-container">
+                            <span class="mode-text">标准模式</span>
+                            <label class="mode-switch">
+                                <input type="checkbox" id="global-mode-toggle">
+                                <span class="mode-slider"></span>
+                            </label>
+                            <div class="mode-tooltip">
+                                开启标准模式/全局模式<br><br>
+                                <strong>标准模式：</strong>插件默认模式，当勾选脚本并刷新网站后，脚本仅会注入到当前网站。<br><br>
+                                <strong>全局模式：</strong>当开启全局模式后，勾选的脚本将注入到每个网站中。<br><br>
+                                注：对于通过file://协议或localhost访问的页面，必须开启全局模式才能注入脚本。
+                            </div>
+                        </div>
                     </div>
                 </div>
 

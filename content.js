@@ -17,7 +17,8 @@
             // 遍历所有启用的脚本，检查是否有Hook配置（有配置的就是Hook脚本）
             if (enabledScripts.length > 0) {
                 const configKeys = enabledScripts.map(id => `${id}_config`);
-                chrome.storage.local.get(configKeys, (configResult) => {
+                // 同时读取合并Hooks数据
+                chrome.storage.local.get([...configKeys, 'antidebug_merged_hooks'], (configResult) => {
                     const hookScriptsReady = [];
                     
                     enabledScripts.forEach(scriptId => {
@@ -55,6 +56,25 @@
                             }
                         }
                     });
+                    
+                    // 同步合并Hooks数据到页面localStorage
+                    const mergedHooks = configResult['antidebug_merged_hooks'];
+                    try {
+                        if (mergedHooks &&
+                            ((mergedHooks.Function && mergedHooks.Function.length > 0) ||
+                             (mergedHooks.Property && mergedHooks.Property.length > 0))) {
+                            localStorage.setItem('Antidebug_breaker_Hooks', JSON.stringify(mergedHooks));
+                        } else {
+                            localStorage.removeItem('Antidebug_breaker_Hooks');
+                        }
+                    } catch (e) {
+                        console.warn('[AntiDebug] Failed to sync Antidebug_breaker_Hooks:', e);
+                    }
+                    
+                    // 如果AntiAnti_Hook已启用，将其加入hookScriptsReady以触发初始化
+                    if (enabledScripts.includes('AntiAnti_Hook')) {
+                        hookScriptsReady.push('AntiAnti_Hook');
+                    }
                     
                     // 🔧 方案二：配置设置完成后，通知所有Hook脚本配置已就绪
                     if (hookScriptsReady.length > 0) {

@@ -15,25 +15,37 @@
     "id": "hook_table",
     "name": "Hook table",
     "description": "绕过js检测运行时间差来实现反调试",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["console.table"]
+    }
   },
   {
     "id": "hook_clear",
     "name": "hook clear",
     "description": "禁止js清除控制台数据",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["console.clear"]
+    }
   },
   {
     "id": "hook_close",
     "name": "hook close",
     "description": "重写close方法，以此来避免网站反调试关闭当前页面",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["window.close"]
+    }
   },
   {
     "id": "hook_history",
     "name": "hook history",
     "description": "避免网站反调试返回上一页或某个特定历史页面",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["window.history.go","window.history.back"]
+    }
   },
   {
     "id": "Hook_CryptoJS",
@@ -265,6 +277,13 @@
     "name": "Hook JSEncrypt SM-crypto",
     "description": "同时Hook JSEncrypt和SM-crypto加密库，当同时启用这两个脚本时自动使用此合并版本以提升性能。",
     "category": "antidebug",
+    "hidden": true
+  },
+  {
+    "id": "AntiAnti_Hook",
+    "name": "AntiAnti Hook",
+    "description": "反Hook检测",
+    "category": "hook",
     "hidden": true
   }
 ]
