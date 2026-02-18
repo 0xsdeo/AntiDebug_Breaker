@@ -1,7 +1,7 @@
 {
   "name": "AntiDebug Breaker",
   "version": "3.0.3",
-  "description": "反调试破除者",
+  "description": "JavaScript Reverse Tools -- JS逆向工具",
   "manifest_version": 3,
   "permissions": [
     "storage",

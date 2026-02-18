@@ -13,20 +13,6 @@
     'use strict';
 
     let temp_eval = eval;
-    let temp_toString = Function.prototype.toString;
-
-    Function.prototype.toString = function () {
-        if (this === eval) {
-            return 'function eval() { [native code] }';
-        } else if (this === Function) {
-            return 'function Function() { [native code] }';
-        } else if (this === Function.prototype.toString) {
-            return 'function toString() { [native code] }';
-        } else if (this === Function.prototype.constructor) {
-            return 'function Function() { [native code] }';
-        }
-        return temp_toString.apply(this, arguments);
-    }
 
     window.eval = function () {
         if (typeof arguments[0] == "string") {

@@ -3,7 +3,10 @@
     "id": "Bypass_Debugger",
     "name": "Bypass Debugger",
     "description": "绕过无限Debugger， 如绕不过去或报错请使用火狐浏览器忽略断点。",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["window.eval","Function","Function.prototype.constructor"]
+    }
   },
   {
     "id": "hook_log",
@@ -51,19 +54,28 @@
     "id": "Hook_CryptoJS",
     "name": "Hook CryptoJS",
     "description": "Hook CryptoJS当中的所有 对称&哈希&HMAC算法，例如AES、DES、MD5、SHA等。如果未打印请自查目标站点是否清除了console.log或是否使用的是CryptoJS的加密算法，如果清除了console.log可以尝试使用hook log脚本防止js重写log方法，如果确认使用的是CryptoJS库进行的加密而无法打印可联系我。",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["Function.prototype.apply"]
+    }
   },
   {
     "id": "Hook_JSEncrypt",
     "name": "Hook JSEncrypt RSA",
     "description": "Hook JSEncrypt加密库中的RSA算法，加密时将在控制台打印公钥、原始数据、加密后的密文。解密时将在控制台打印私钥、原始数据、解密后的明文。如果未打印请自查目标站点是否清除了console.log或是否使用的是JSEncrypt的RSA算法，如果清除了console.log可以尝试使用hook log脚本防止js重写log方法，如果确认使用的是JSEncrypt库进行的RSA加密而无法打印可联系我。",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["Function.prototype.call"]
+    }
   },
   {
     "id": "Hook_SMcrypto",
     "name": "Hook SM-crypto",
     "description": "Hook SM-crypto加密库当中的 SM2、SM3、SM4算法。如果未打印请自查目标站点是否清除了console.log或是否使用的是sm-crypto的加密算法，如果清除了console.log可以尝试使用hook log脚本防止js重写log方法，如果确认使用的是sm-crypto库进行的加密而无法打印可联系我。",
-    "category": "antidebug"
+    "category": "antidebug",
+    "Hooks" :{
+        "Function": ["Function.prototype.call"]
+    }
   },
   {
     "id": "Fixed_window_size",

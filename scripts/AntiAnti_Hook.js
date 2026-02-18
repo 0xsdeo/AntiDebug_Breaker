@@ -56,6 +56,9 @@
             Function.prototype.toString = function () {
                 if (this === Function.prototype.toString) {
                     return 'function toString() { [native code] }';
+                } else if (this === Function.prototype.constructor &&
+                           hookedFunctions.has(Function.prototype.constructor)) {
+                    return 'function Function() { [native code] }';
                 }
                 // 直接查Map，判断当前函数是否是被hook的方法之一
                 else if (hookedFunctions.has(this)) {
@@ -65,7 +68,7 @@
                 return temp_toString.apply(this, arguments);
             };
 
-            // 构建完整路径 → fn 的 Map，例如 "window.history.go" → fn
+            // 构建完整路径 → fn 的 Map，例如 "console.table" → fn
             const hookedMethodNames = new Map(); // Map<fullPath, fn>
             methods.forEach(path => {
                 let ref = window;
@@ -86,6 +89,33 @@
                 }
             });
 
+            // 构建对象级 hook Map：rootObjectName → [{remaining, fn}]
+            // 用于处理 property 是对象名（如 "console"）的场景
+            // 以 "window" 开头的路径去掉前缀后处理，单段路径由直接属性逻辑覆盖，跳过
+            const objectHooksMap = new Map();
+            methods.forEach(path => {
+                const parts = path.split('.');
+                const rootParts = parts[0] === 'window' ? parts.slice(1) : parts;
+                if (rootParts.length < 2) return;
+                const rootName = rootParts[0];
+                const remaining = rootParts.slice(1);
+                const fn = hookedMethodNames.get(path);
+                if (!fn) return;
+                if (!objectHooksMap.has(rootName)) objectHooksMap.set(rootName, []);
+                objectHooksMap.get(rootName).push({ remaining, fn });
+            });
+
+            // 默认注入：无论 methods 中是否包含，始终覆写 iframe 的 Function.prototype.toString
+            if (!objectHooksMap.has('Function')) objectHooksMap.set('Function', []);
+            const existsToString = objectHooksMap.get('Function')
+                .some(({ remaining }) => remaining.join('.') === 'prototype.toString');
+            if (!existsToString) {
+                objectHooksMap.get('Function').push({
+                    remaining: ['prototype', 'toString'],
+                    fn: Function.prototype.toString
+                });
+            }
+
             // 防止iframe反hook
             let property_accessor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow");
             let get_accessor = property_accessor.get;
@@ -96,24 +126,41 @@
 
                     iframe_window = new Proxy(iframe_window, {
                         get: function (target, property, receiver) {
-                            // property 可能是完整路径（如 "console.log"）也可能只是属性名（如 "log"）
-                            // 因此同时用两种方式比对：完整路径结尾匹配 或 最后一段匹配
                             if (typeof property === 'string') {
+                                // 方案一：property 是完整路径或末段方法名，直接返回主window已hook的函数
                                 for (const [fullPath, fn] of hookedMethodNames.entries()) {
                                     if (fullPath.endsWith('.' + property) ||
                                         fullPath === property) {
                                         return fn;
                                     }
                                 }
-                                if (property === 'console') {
-                                    return window.console;
+                                // 方案二：property 是某个对象名（如 "console"、"Function"）
+                                // 取出 iframe 的真实对象，覆写其中被 hook 的方法后返回
+                                if (objectHooksMap.has(property)) {
+                                    const obj = Reflect.get(target, property, target);
+                                    if (obj !== null && (typeof obj === 'object' || typeof obj === 'function')) {
+                                        objectHooksMap.get(property).forEach(({ remaining, fn }) => {
+                                            let ref = obj;
+                                            try {
+                                                for (let i = 0; i < remaining.length - 1; i++) {
+                                                    ref = ref[remaining[i]];
+                                                    if (!ref) return;
+                                                }
+                                                ref[remaining[remaining.length - 1]] = fn;
+                                            } catch (e) {}
+                                        });
+                                    }
+                                    return obj;
                                 }
                             }
-                            return Reflect.get(target, property, receiver);
+                            // 用 target 替代 receiver，避免原生 getter 因 this 是 Proxy 而报 Illegal invocation
+                            const value = Reflect.get(target, property, target);
+                            if (typeof value === 'function') {
+                                return value.bind(target);
+                            }
+                            return value;
                         },
                     });
-
-                    console.log(new Error().stack);
 
                     return iframe_window;
                 }
