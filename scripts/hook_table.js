@@ -24,6 +24,10 @@
     // }
 
     console.table = function () {
-        // // 在这里写你想让hook后的方法执行的代码
+        // 在这里写你想让hook后的方法执行的代码
     }
+
+    performance.now = function () {
+        return 4784.800000000745;
+    };
 })();
