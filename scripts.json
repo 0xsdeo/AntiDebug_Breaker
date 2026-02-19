@@ -20,7 +20,7 @@
     "description": "绕过js检测运行时间差来实现反调试",
     "category": "antidebug",
     "Hooks" :{
-        "Function": ["console.table","performance.now"]
+        "Function": ["console.table"]
     }
   },
   {
