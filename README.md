@@ -64,6 +64,7 @@ SpiderDemo 靶场练习网站：https://www.spiderdemo.cn
 - <a href="#Promise">Promise</a>
 - <a href="#Math.random">Math.random</a>
 - <a href="#Date.now">Date.now</a>
+- <a href="#performance.now">performance.now</a>
 
 > Vue
 
@@ -230,6 +231,10 @@ Hook SM-crypto加密库当中的 SM2、SM3、SM4算法。如果未打印请自�
 - <a id="Date.now" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/Hook_Date_now.js">Date.now</a>
 
 固定Date.now返回值
+
+- <a id="performance.now" href="https://github.com/0xsdeo/AntiDebug_Breaker/blob/main/scripts/hook_performance_now.js">performance.now</a>
+
+固定performance.now返回值
 
 ### Vue
 
