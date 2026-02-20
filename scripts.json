@@ -285,6 +285,19 @@
     "value": "0"
   },
   {
+    "id": "hook_performance_now",
+    "name": "performance.now",
+    "description": "固定performance.now返回值",
+    "category": "hook",
+    "fixed_variate": 1,
+    "debugger": 1,
+    "stack": 1,
+    "value": "0",
+    "Hooks" :{
+        "Function": ["performance.now"]
+    }
+  },
+  {
     "id": "Hook_JSEncrypt_SMcrypto",
     "name": "Hook JSEncrypt SM-crypto",
     "description": "同时Hook JSEncrypt和SM-crypto加密库，当同时启用这两个脚本时自动使用此合并版本以提升性能。",

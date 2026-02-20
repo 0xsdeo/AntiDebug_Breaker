@@ -188,8 +188,8 @@
             // 检查是否包含当前脚本ID
             const scriptIds = event.data.scriptIds || [];
             if (scriptIds.includes(SCRIPT_ID)) {
-                // 配置已就绪，初始化Hook
-                initHook();
+                // 推迟到下一个 tick，确保其他 hook 脚本的监听器已全部执行完毕
+                setTimeout(initHook, 0);
             }
         });
     }
