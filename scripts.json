@@ -289,10 +289,10 @@
     "name": "performance.now",
     "description": "固定performance.now返回值",
     "category": "hook",
-    "fixed_variate": 1,
+    "fixed_variate": 0,
+    "has_Param": 0,
     "debugger": 1,
     "stack": 1,
-    "value": "0",
     "Hooks" :{
         "Function": ["performance.now"]
     }
