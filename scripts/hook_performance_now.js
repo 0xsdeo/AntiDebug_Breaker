@@ -12,11 +12,6 @@
 (function () {
     'use strict';
 
-    // 必须返回随时间递增的值，否则会被时序检测（t1===t2）判定为 hook 并触发内存炸弹
-    const navStart = (typeof performance !== 'undefined' && performance.timing)
-        ? performance.timing.navigationStart
-        : Date.now();
-
     let SCRIPT_ID = 'hook_performance_now'; //脚本文件名
 
     function clear_Antidebug(id) {
@@ -26,6 +21,7 @@
     }
 
     function initHook() {
+        let value = Number(localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_value"));
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
         let is_stack = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_stack");
 
@@ -36,7 +32,7 @@
             if (is_stack === "1") {
                 console.log(new Error().stack);
             }
-            return Date.now() - navStart;
+            return value;
         };
 
         clear_Antidebug(SCRIPT_ID);
