@@ -33,10 +33,16 @@
     let observer = null;
     let allTimeoutIds = [];
     let hasOutputResult = false;
+    let printedReactInstances = new WeakSet();
     let cachedResult = null; // 缓存找到的路由数据，供 REQUEST 时复用
 
     // ===== 站点特定标志 =====
     const IS_GITHUB = window.location.hostname === 'github.com';
+    const REACT_CONTEXT_TYPE = Symbol.for('react.context');
+    const REACT_CONSUMER_TYPE = Symbol.for('react.consumer');
+    const REACT_PROVIDER_TYPE = Symbol.for('react.provider');
+    const REACT_MEMO_TYPE = Symbol.for('react.memo');
+    const REACT_FORWARD_REF_TYPE = Symbol.for('react.forward_ref');
 
     // ===== 发送数据到插件 =====
     function sendToExtension(data) {
@@ -77,6 +83,7 @@
         }
         hasOutputResult = false;
         cachedResult = null;
+        printedReactInstances = new WeakSet();
         startDOMObserver();
         startPollingRetry();
     }
@@ -221,6 +228,195 @@
     // ===== RouterProvider模式检测（v6 data router）=====
     // 对应 React Router v6 的 createBrowserRouter + <RouterProvider router={router} />
     // v6 data router 有专属方法 navigate / subscribe，v3/v4 router 没有
+    // React DevTools 在没有容器入口时，也可以从宿主 DOM 节点反查 Fiber。
+    // 这里不使用 DevTools hook，只参考这个方向：扫描 DOM 节点上的 __reactFiber$ / __reactInternalInstance$。
+    function findReactHostFibers() {
+        if (!document.body && !document.documentElement) return [];
+
+        const results = [];
+        const seenFibers = new WeakSet();
+        const queue = [];
+        const visited = new Set();
+        if (document.body) queue.push(document.body);
+        if (document.documentElement && document.documentElement !== document.body) {
+            queue.push(document.documentElement);
+        }
+
+        while (queue.length > 0) {
+            const node = queue.shift();
+            if (!node || visited.has(node)) continue;
+            visited.add(node);
+
+            if (node.nodeType === 1) {
+                for (let prop in node) {
+                    if (
+                        prop.startsWith('__reactFiber$') ||
+                        prop.startsWith('__reactInternalInstance$')
+                    ) {
+                        const fiber = node[prop];
+                        if (fiber && typeof fiber === 'object' && !seenFibers.has(fiber)) {
+                            seenFibers.add(fiber);
+                            results.push({
+                                node,
+                                prop,
+                                fiber
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (node.shadowRoot) queue.push(node.shadowRoot);
+            if (node.childNodes) {
+                for (let i = 0; i < node.childNodes.length; i++) {
+                    queue.push(node.childNodes[i]);
+                }
+            }
+        }
+
+        if (results.length > 0) {
+            console.log(`[AntiDebug] 检测到 ${results.length} 个 React Host Fiber 节点`);
+        }
+        return results;
+    }
+
+    function getStartFiberFromHostFiber(fiber) {
+        if (!fiber || typeof fiber !== 'object') return null;
+
+        try {
+            if (fiber._currentElement || fiber._renderedChildren || fiber._renderedComponent) {
+                let current = fiber;
+                let highest = fiber;
+                let depth = 0;
+                while (current && current._hostParent && depth < 10000) {
+                    current = current._hostParent;
+                    highest = current;
+                    depth++;
+                }
+                return highest || fiber;
+            }
+
+            const fiberRoot = fiber.stateNode && fiber.stateNode.current ? fiber.stateNode : null;
+            if (fiberRoot && fiberRoot.current && fiberRoot.current.child) {
+                return fiberRoot.current.child;
+            }
+
+            let current = fiber;
+            let highest = fiber;
+            let depth = 0;
+            while (current && current.return && depth < 10000) {
+                current = current.return;
+                highest = current;
+                if (current.tag === 3) break; // HostRoot
+                depth++;
+            }
+
+            if (current && current.tag === 3) {
+                const latestHostRoot = current.stateNode && current.stateNode.current ? current.stateNode.current : current;
+                if (latestHostRoot && latestHostRoot.child) return latestHostRoot.child;
+                if (current.child) return current.child;
+            }
+
+            return highest || fiber;
+        } catch (e) {
+            console.warn('[AntiDebug] getStartFiberFromHostFiber 出错:', e);
+            return null;
+        }
+    }
+
+    function getLegacyReactInstanceChildren(instance) {
+        const children = [];
+        if (!instance || typeof instance !== 'object') return children;
+
+        const pushChild = (child) => {
+            if (child && typeof child === 'object') children.push(child);
+        };
+
+        pushChild(instance._renderedComponent);
+        pushChild(instance._renderedNode);
+
+        const renderedChildren = instance._renderedChildren;
+        if (renderedChildren && typeof renderedChildren === 'object') {
+            if (Array.isArray(renderedChildren)) {
+                renderedChildren.forEach(pushChild);
+            } else {
+                Object.keys(renderedChildren).forEach(key => pushChild(renderedChildren[key]));
+            }
+        }
+
+        const renderedChildrenArray = instance._renderedChildrenArray;
+        if (Array.isArray(renderedChildrenArray)) {
+            renderedChildrenArray.forEach(pushChild);
+        }
+
+        return children;
+    }
+
+    function printReactInstances(records) {
+        const newRecords = records.filter(record => {
+            if (!record.startFiber || printedReactInstances.has(record.startFiber)) return false;
+            printedReactInstances.add(record.startFiber);
+            return true;
+        });
+        if (newRecords.length === 0) return;
+
+        const title = `[AntiDebug] React 实例列表（${newRecords.length} 个）`;
+        if (typeof console.groupCollapsed === 'function') {
+            console.groupCollapsed(title);
+        } else {
+            console.log(title);
+        }
+
+        newRecords.forEach((record, index) => {
+            const displayName = getFiberDisplayName(record.startFiber) || '(unknown)';
+            console.log(
+                `[AntiDebug] React实例 #${index + 1} 来源=${record.source} 入口组件=${displayName}`,
+                record.startFiber
+            );
+            if (record.rawFiber && record.rawFiber !== record.startFiber) {
+                console.log(`[AntiDebug] React实例 #${index + 1} 原始Host Fiber:`, record.rawFiber);
+            }
+        });
+
+        if (typeof console.groupEnd === 'function') {
+            console.groupEnd();
+        }
+    }
+
+    function getReactStartFibers() {
+        const startFibers = [];
+        const records = [];
+        const seen = new WeakSet();
+
+        const addStartFiber = (startFiber, source, rawFiber) => {
+            if (!startFiber || typeof startFiber !== 'object' || seen.has(startFiber)) return;
+            seen.add(startFiber);
+            startFibers.push(startFiber);
+            records.push({
+                source,
+                rawFiber,
+                startFiber
+            });
+        };
+
+        const containers = findReactContainers();
+        for (const container of containers) {
+            addStartFiber(getStartFiber(container), container.prop, container.value);
+        }
+
+        const hostFibers = findReactHostFibers();
+        for (const item of hostFibers) {
+            addStartFiber(getStartFiberFromHostFiber(item.fiber), item.prop, item.fiber);
+            if (item.fiber && item.fiber.alternate) {
+                addStartFiber(getStartFiberFromHostFiber(item.fiber.alternate), `${item.prop}.alternate`, item.fiber.alternate);
+            }
+        }
+
+        printReactInstances(records);
+        return startFibers;
+    }
+
     function isRouterProvider(props) {
         if (!props || typeof props !== 'object') return false;
         const router = props.router;
@@ -302,6 +498,122 @@
             }));
     }
 
+    function getContextDisplayName(context) {
+        if (!context || typeof context !== 'object') return 'Context';
+        return context.displayName || 'Context';
+    }
+
+    function getComponentDisplayName(type) {
+        if (!type) return '';
+        if (typeof type === 'string') return type;
+        if (typeof type === 'function') return type.displayName || type.name || 'Anonymous';
+        if (typeof type === 'symbol') return String(type).replace(/^Symbol\((.*)\)$/, '$1');
+        if (typeof type !== 'object') return '';
+        if (typeof type.displayName === 'string' && type.displayName) return type.displayName;
+
+        const reactType = type.$$typeof;
+        if (reactType === REACT_MEMO_TYPE) return getComponentDisplayName(type.type) || 'Anonymous Memo';
+        if (reactType === REACT_FORWARD_REF_TYPE) return `${getComponentDisplayName(type.render) || 'Anonymous'} ForwardRef`;
+        if (reactType === REACT_CONTEXT_TYPE) return `${getContextDisplayName(type)}.Provider`;
+        if (reactType === REACT_PROVIDER_TYPE) return `${getContextDisplayName(type._context || type)}.Provider`;
+        if (reactType === REACT_CONSUMER_TYPE) return `${getContextDisplayName(type._context || type)}.Consumer`;
+        return '';
+    }
+
+    function getFiberDisplayName(fiber) {
+        if (!fiber || typeof fiber !== 'object') return '';
+        return getComponentDisplayName(fiber.elementType) ||
+            getComponentDisplayName(fiber.type) ||
+            getComponentDisplayName(fiber._debugOwner && fiber._debugOwner.type);
+    }
+
+    function isRouterRelatedName(name) {
+        return typeof name === 'string' && /router|route/i.test(name);
+    }
+
+    function detectRouterFromContextValue(value, allowLooseRoutes) {
+        if (!value || typeof value !== 'object') return null;
+
+        if (isRouterProvider({ router: value })) {
+            return {
+                type: 'RouterProvider',
+                router: value
+            };
+        }
+        if (isRouterProvider({ router: value.router })) {
+            return {
+                type: 'RouterProvider',
+                router: value.router
+            };
+        }
+        if (isLegacyRouterObject(value)) {
+            return {
+                type: 'LegacyRoutes',
+                routes: value.routes
+            };
+        }
+        if (isLegacyRouterObject(value.router)) {
+            return {
+                type: 'LegacyRoutes',
+                routes: value.router.routes
+            };
+        }
+        if (isGitHubRoutes(value)) {
+            return {
+                type: 'GitHubRoutes',
+                routes: value.routes
+            };
+        }
+        if (allowLooseRoutes && Array.isArray(value.routes) && value.routes.length > 0) {
+            const hasRouteShape = value.routes.some(route =>
+                route && typeof route === 'object' && ('path' in route || 'children' in route || 'id' in route)
+            );
+            if (hasRouteShape) {
+                return {
+                    type: 'ContextRoutes',
+                    routes: value.routes
+                };
+            }
+        }
+        if (value.value && value.value !== value && typeof value.value === 'object') {
+            return detectRouterFromContextValue(value.value, allowLooseRoutes);
+        }
+        return null;
+    }
+
+    function searchRouterInFiberContext(fiber) {
+        const displayName = getFiberDisplayName(fiber);
+        const allowLooseRoutes = isRouterRelatedName(displayName);
+        const fibersToCheck = [fiber];
+        if (fiber && fiber.alternate && fiber.alternate !== fiber) fibersToCheck.push(fiber.alternate);
+
+        for (const currentFiber of fibersToCheck) {
+            if (!currentFiber || typeof currentFiber !== 'object') continue;
+
+            const dependencySources = [
+                currentFiber.dependencies,
+                currentFiber.dependencies_old,
+                currentFiber.dependencies_new,
+                currentFiber.contextDependencies
+            ];
+
+            for (const deps of dependencySources) {
+                if (!deps) continue;
+                let ctx = deps.firstContext || deps.first || null;
+                while (ctx) {
+                    const result = detectRouterFromContextValue(ctx.memoizedValue, allowLooseRoutes);
+                    if (result) {
+                        result.contextDisplayName = displayName;
+                        return result;
+                    }
+                    ctx = ctx.next;
+                }
+            }
+        }
+
+        return null;
+    }
+
     // ===== 提取 React Router 基础路径（basename）=====
     // RouterProvider 模式：直接读 result.router.basename（getter）
     // JSX / Legacy 模式：遍历 Fiber 依赖上下文链，找携带 basename 的 React Context 值
@@ -325,6 +637,7 @@
             count++;
             if (!fiber || typeof fiber !== 'object' || visited.has(fiber)) continue;
             visited.add(fiber);
+
             try {
                 if (fiber.dependencies) {
                     let ctx = fiber.dependencies.firstContext;
@@ -397,6 +710,36 @@
     //   - 每层只检测 RouterProvider / LegacyRoutes / GitHubRoutes（不含 JSX Routes，太宽泛）
     //   - 沿 .children（单元素或数组）向下递归，maxDepth 控制最大深度
     //   - 默认 maxDepth=4，覆盖最多 3 层嵌套（已足够 GitHub 2层、其他常见 1层场景）
+    function getJSXRoutesCandidate(props, fiber) {
+        if (!props || typeof props !== 'object' || !props.children) return null;
+
+        if (isRoutesComponent(props)) {
+            return {
+                type: 'Routes',
+                props
+            };
+        }
+
+        const stateNode = fiber && fiber.stateNode;
+        const isLikelyRouterWrapper =
+            typeof props.basename === 'string' ||
+            props.history ||
+            props.location ||
+            (stateNode && (stateNode.history || stateNode.props === props)) ||
+            isRouterRelatedName(getFiberDisplayName(fiber));
+
+        if (!isLikelyRouterWrapper) return null;
+
+        const routes = extractJSXRoutes(props);
+        if (routes.length >= 2 || routes.some(route => route.path === '/' || route.path === '*')) {
+            return {
+                type: 'Routes',
+                props
+            };
+        }
+        return null;
+    }
+
     function searchNestedReactElements(props, maxDepth) {
         if (maxDepth <= 0 || !props || typeof props !== 'object') return null;
 
@@ -463,9 +806,21 @@
             // 2. alternate fiber 的 memoizedProps / pendingProps
             //    （路由数据有时仅存于 alternate，不加入队列只读其 props）
             const propsSources = [fiber.memoizedProps, fiber.pendingProps];
+            if (fiber._currentElement && fiber._currentElement.props) {
+                propsSources.push(fiber._currentElement.props);
+            }
+            if (fiber.stateNode && fiber.stateNode.props) {
+                propsSources.push(fiber.stateNode.props);
+            }
+            const contextRouter = searchRouterInFiberContext(fiber);
+            if (contextRouter) return contextRouter;
+
             const alt = fiber.alternate;
             if (alt && alt !== fiber && !visited.has(alt)) {
                 propsSources.push(alt.memoizedProps, alt.pendingProps);
+                if (alt.stateNode && alt.stateNode.props) {
+                    propsSources.push(alt.stateNode.props);
+                }
             }
 
             for (const props of propsSources) {
@@ -494,11 +849,11 @@
                 }
                 // JSX Routes：仅保存第一个命中，继续扫描不返回
                 // 避免因浅层误判提前退出，错过更深处的真实路由
-                if (!jsxRoutesCandidate && isRoutesComponent(props)) {
-                    jsxRoutesCandidate = {
-                        type: 'Routes',
-                        props
-                    };
+                if (!jsxRoutesCandidate) {
+                    const jsxCandidate = getJSXRoutesCandidate(props, fiber);
+                    if (jsxCandidate) {
+                        jsxRoutesCandidate = jsxCandidate;
+                    }
                 }
                 // 以上均未命中：向 React Element 嵌套链补充搜索（最多 3 层深）
                 // 处理 router 藏在 props.children.props.children.props.router 等场景
@@ -509,6 +864,7 @@
             // 严格只走Fiber树导航链路
             if (fiber.child) queue.push(fiber.child);
             if (fiber.sibling) queue.push(fiber.sibling);
+            getLegacyReactInstanceChildren(fiber).forEach(child => queue.push(child));
         }
 
         if (count >= MAX_NODES) {
@@ -651,6 +1007,7 @@
     const TYPE_PRIORITY = {
         RouterProvider: 4,
         GitHubRoutes: 3,
+        ContextRoutes: 3,
         LegacyRoutes: 2,
         Routes: 1
     };
@@ -658,8 +1015,8 @@
     function tryGetRouter() {
         if (hasOutputResult) return true;
 
-        const containers = findReactContainers();
-        if (containers.length === 0) return false;
+        const startFibers = getReactStartFibers();
+        if (startFibers.length === 0) return false;
 
         const collectedRoutes = []; // 汇总所有容器的路由
         const seenKeys = new Set(); // 去重用：name::path
@@ -668,8 +1025,7 @@
         let primaryBase = '';
         let found = false;
 
-        for (const container of containers) {
-            const startFiber = getStartFiber(container);
+        for (const startFiber of startFibers) {
             if (!startFiber) continue;
 
             const result = findRouterInFiber(startFiber);
@@ -693,6 +1049,14 @@
                 routes = extractGitHubRoutes(result.routes);
                 mode = 'browser';
                 console.log('\n📋 React Router 路由列表 [GitHub 自研路由]：');
+                console.table(routes.map(r => ({
+                    Name: r.name,
+                    Path: r.path
+                })));
+            } else if (result.type === 'ContextRoutes') {
+                routes = extractRouterProviderRoutes(result.routes);
+                mode = detectRouterMode({});
+                console.log('\n[AntiDebug] React Router 路由列表 [Context routes 模式]:');
                 console.table(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
