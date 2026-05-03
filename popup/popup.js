@@ -1713,13 +1713,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const reactRouteSearchInput = document.getElementById('react-route-search-input');
         const reactCopyAllPathsBtn = document.querySelector('.react-copy-all-paths-btn');
         const reactCopyAllUrlsBtn = document.querySelector('.react-copy-all-urls-btn');
+        const reactBaseInputContainer = document.querySelector('.react-route-base-input-container');
 
         if (!reactRoutesListContainer) return;
+
+        // URL 清理：去多余斜杠和尾部斜杠
+        const cleanUrl = (url) => url.replace(/([^:]\/)\/+/g, '$1').replace(/\/$/, '');
 
         // 默认隐藏可选区域
         if (reactRoutesInfoBar) reactRoutesInfoBar.style.display = 'none';
         if (reactRouteSearchContainer) reactRouteSearchContainer.style.display = 'none';
         if (reactRoutesActionsFooter) reactRoutesActionsFooter.style.display = 'none';
+        if (reactBaseInputContainer) reactBaseInputContainer.style.display = 'none';
 
         if (!reactRouterInfo) {
             reactRoutesListContainer.innerHTML = '<div class="empty-state">等待检测 React Router（如需检测请打开<strong>获取路由</strong>并刷新网站）</div>';
@@ -1742,36 +1747,60 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 显示路由信息头（count 在渲染完后更新，先用原始数量占位）
-        if (reactRoutesInfoBar) {
-            reactRoutesInfoBar.style.display = 'flex';
-        }
-
-        // 显示搜索框和底部按钮
+        if (reactRoutesInfoBar) reactRoutesInfoBar.style.display = 'flex';
         if (reactRouteSearchContainer) reactRouteSearchContainer.style.display = 'flex';
         if (reactRoutesActionsFooter) reactRoutesActionsFooter.style.display = 'flex';
 
         const routerMode = reactRouterInfo.routerMode || 'browser';
         let baseUrl = window.location.origin;
         if (currentTab_obj && currentTab_obj.url) {
-            try {
-                baseUrl = new URL(currentTab_obj.url).origin;
-            } catch (e) {}
+            try { baseUrl = new URL(currentTab_obj.url).origin; } catch (e) {}
         }
 
-        // 渲染路由列表
+        // ===== Base URL 处理（参照 Vue 板块逻辑）=====
+        const detectedBase = reactRouterInfo.routerBase || '';
+        let shouldShowBaseInput = false;
+        let cleanDetectedBase = '';
+
+        if (detectedBase.trim() !== '') {
+            if (detectedBase.startsWith('http://') || detectedBase.startsWith('https://') || detectedBase.includes('#')) {
+                console.warn('[AntiDebug] React 检测到的 basename 无效，已忽略:', detectedBase);
+            } else {
+                cleanDetectedBase = detectedBase.endsWith('/') ? detectedBase.slice(0, -1) : detectedBase;
+                if (cleanDetectedBase !== '/' && cleanDetectedBase !== '') {
+                    shouldShowBaseInput = true;
+                }
+            }
+        }
+
+        let currentCustomBase = ''; // 当前用户输入/存储的 base
+
+        // 构建完整 URL（含 base 处理）
+        function buildFullUrl(normalizedPath) {
+            if (currentCustomBase && currentCustomBase.trim() !== '') {
+                const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                if (routerMode === 'hash') {
+                    return cleanUrl(baseUrl + cleanBase + '#' + normalizedPath);
+                } else {
+                    return cleanUrl(baseUrl + cleanBase + normalizedPath);
+                }
+            } else {
+                if (routerMode === 'hash') {
+                    return baseUrl + '#' + normalizedPath;
+                } else {
+                    return baseUrl + normalizedPath;
+                }
+            }
+        }
+
+        // 渲染路由列表（按完整 URL 去重）
         function renderRoutes(routesToShow) {
             reactRoutesListContainer.innerHTML = '';
-            const seenUrls = new Set(); // 按完整URL去重
+            const seenUrls = new Set();
             routesToShow.forEach(route => {
                 const rawPath = route.path || '/';
                 const normalizedPath = rawPath.startsWith('/') ? rawPath : '/' + rawPath;
-                let fullUrl;
-                if (routerMode === 'hash') {
-                    fullUrl = baseUrl + '#' + normalizedPath;
-                } else {
-                    fullUrl = baseUrl + normalizedPath;
-                }
+                const fullUrl = buildFullUrl(normalizedPath);
                 if (seenUrls.has(fullUrl)) return;
                 seenUrls.add(fullUrl);
 
@@ -1785,16 +1814,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
-                const copyBtn = routeItem.querySelector('.copy-btn');
-                copyBtn.addEventListener('click', () => {
+                routeItem.querySelector('.copy-btn').addEventListener('click', () => {
                     navigator.clipboard.writeText(fullUrl).then(() => {
-                        copyBtn.textContent = '✓ 已复制';
-                        setTimeout(() => { copyBtn.textContent = '复制'; }, 1500);
+                        const btn = routeItem.querySelector('.copy-btn');
+                        btn.textContent = '✓ 已复制';
+                        setTimeout(() => { btn.textContent = '复制'; }, 1500);
                     }).catch(err => console.error('复制失败:', err));
                 });
 
-                const openBtn = routeItem.querySelector('.open-btn');
-                openBtn.addEventListener('click', () => {
+                routeItem.querySelector('.open-btn').addEventListener('click', () => {
                     chrome.tabs.update(currentTab_obj.id, { url: fullUrl });
                 });
 
@@ -1802,31 +1830,78 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // 渲染并更新信息头（去重后的真实数量）
+        // 渲染并更新信息头计数（去重后的真实数量）
         function renderRoutesAndUpdateCount(routesToShow) {
             renderRoutes(routesToShow);
             const reactRoutesInfo = document.querySelector('.react-routes-info');
             if (reactRoutesInfo) {
-                const routerMode = reactRouterInfo.routerMode || 'browser';
                 const renderedCount = reactRoutesListContainer.querySelectorAll('.route-item').length;
                 reactRoutesInfo.innerHTML = `完整路由列表 (<span class="highlight">${routerMode}</span> 模式) -- <span class="highlight">${renderedCount}</span> 条路由`;
             }
         }
 
-        renderRoutesAndUpdateCount(allRoutes);
+        // 搜索时重渲染
+        function renderRoutesWithSearch() {
+            const term = (reactRouteSearchInput ? reactRouteSearchInput.value : '').toLowerCase().trim();
+            if (term) {
+                const filtered = allRoutes.filter(r =>
+                    (r.path || '').toLowerCase().includes(term) || (r.name || '').toLowerCase().includes(term)
+                );
+                renderRoutesAndUpdateCount(filtered);
+            } else {
+                renderRoutesAndUpdateCount(allRoutes);
+            }
+        }
 
-        // 搜索功能
+        // ===== Base URL 输入区 =====
+        if (shouldShowBaseInput && reactBaseInputContainer) {
+            reactBaseInputContainer.style.display = 'flex';
+            const detectedBaseValue = reactBaseInputContainer.querySelector('.react-detected-base-value');
+            const applyBtn = reactBaseInputContainer.querySelector('.react-apply-detected-base-btn');
+            const customInput = document.getElementById('react-custom-base-input');
+            const clearBtn = reactBaseInputContainer.querySelector('.react-clear-base-btn');
+
+            if (detectedBaseValue) detectedBaseValue.textContent = cleanDetectedBase;
+
+            // 从 storage 恢复自定义 base
+            const storageKey = `${hostname}_react_custom_base`;
+            chrome.storage.local.get([storageKey], (result) => {
+                currentCustomBase = result[storageKey] || '';
+                if (customInput) customInput.value = currentCustomBase;
+                renderRoutesWithSearch();
+            });
+
+            if (applyBtn) {
+                applyBtn.onclick = () => {
+                    currentCustomBase = cleanDetectedBase;
+                    if (customInput) customInput.value = currentCustomBase;
+                    chrome.storage.local.set({ [storageKey]: currentCustomBase });
+                    renderRoutesWithSearch();
+                };
+            }
+            if (clearBtn) {
+                clearBtn.onclick = () => {
+                    currentCustomBase = '';
+                    if (customInput) customInput.value = '';
+                    chrome.storage.local.set({ [storageKey]: '' });
+                    renderRoutesWithSearch();
+                };
+            }
+            if (customInput) {
+                customInput.oninput = (e) => {
+                    currentCustomBase = e.target.value.trim();
+                    chrome.storage.local.set({ [storageKey]: currentCustomBase });
+                    renderRoutesWithSearch();
+                };
+            }
+        } else {
+            renderRoutesAndUpdateCount(allRoutes);
+        }
+
+        // 搜索框
         if (reactRouteSearchInput) {
             reactRouteSearchInput.value = '';
-            reactRouteSearchInput.oninput = (e) => {
-                const term = e.target.value.toLowerCase();
-                const filtered = allRoutes.filter(r => {
-                    const p = (r.path || '').toLowerCase();
-                    const n = (r.name || '').toLowerCase();
-                    return p.includes(term) || n.includes(term);
-                });
-                renderRoutesAndUpdateCount(filtered);
-            };
+            reactRouteSearchInput.oninput = renderRoutesWithSearch;
         }
 
         // 批量复制路径
@@ -1834,7 +1909,12 @@ document.addEventListener('DOMContentLoaded', () => {
             reactCopyAllPathsBtn.onclick = () => {
                 const text = allRoutes.map(r => {
                     const p = r.path || '/';
-                    return p.startsWith('/') ? p : '/' + p;
+                    const normalizedPath = p.startsWith('/') ? p : '/' + p;
+                    if (currentCustomBase && currentCustomBase.trim() !== '') {
+                        const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                        return cleanBase + normalizedPath;
+                    }
+                    return normalizedPath;
                 }).join('\n');
                 navigator.clipboard.writeText(text).then(() => {
                     reactCopyAllPathsBtn.textContent = '✓ 已复制';
@@ -1849,9 +1929,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const text = allRoutes.map(r => {
                     const p = r.path || '/';
                     const normalizedPath = p.startsWith('/') ? p : '/' + p;
-                    return routerMode === 'hash'
-                        ? baseUrl + '#' + normalizedPath
-                        : baseUrl + normalizedPath;
+                    return buildFullUrl(normalizedPath);
                 }).join('\n');
                 navigator.clipboard.writeText(text).then(() => {
                     reactCopyAllUrlsBtn.textContent = '✓ 已复制';

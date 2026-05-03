@@ -302,6 +302,47 @@
             }));
     }
 
+    // ===== 提取 React Router 基础路径（basename）=====
+    // RouterProvider 模式：直接读 result.router.basename（getter）
+    // JSX / Legacy 模式：遍历 Fiber 依赖上下文链，找携带 basename 的 React Context 值
+    function extractReactRouterBasename(startFiber, result) {
+        // RouterProvider / 嵌套搜索命中的 RouterProvider：直接访问 router.basename
+        if (result.router) {
+            try {
+                const bn = result.router.basename;
+                if (typeof bn === 'string' && bn !== '/' && bn.trim() !== '') return bn;
+            } catch (e) {}
+        }
+
+        // JSX Routes / Legacy：走 Fiber 依赖上下文链
+        // 路径示例：fiber.dependencies.firstContext.next.memoizedValue.basename
+        if (!startFiber) return '';
+        const queue = [startFiber];
+        const visited = new WeakSet();
+        let count = 0;
+        while (queue.length > 0 && count < 200) {
+            const fiber = queue.shift();
+            count++;
+            if (!fiber || typeof fiber !== 'object' || visited.has(fiber)) continue;
+            visited.add(fiber);
+            try {
+                if (fiber.dependencies) {
+                    let ctx = fiber.dependencies.firstContext;
+                    while (ctx) {
+                        const val = ctx.memoizedValue;
+                        if (val && typeof val === 'object') {
+                            const bn = val.basename;
+                            if (typeof bn === 'string' && bn !== '/' && bn.trim() !== '') return bn;
+                        }
+                        ctx = ctx.next;
+                    }
+                }
+            } catch (e) {}
+            if (fiber.child) queue.push(fiber.child);
+        }
+        return '';
+    }
+
     // ===== JSX <Routes>/<Route> 模式检测 =====
     // 对应 React Router v5/v6 的 JSX 写法：<Routes><Route path="/" element={...} /></Routes>
     // 路由信息分散在各个 React Element 的 props 里
@@ -624,6 +665,7 @@
         const seenKeys = new Set(); // 去重用：name::path
         let primaryType = null;
         let primaryMode = 'browser';
+        let primaryBase = '';
         let found = false;
 
         for (const container of containers) {
@@ -673,10 +715,11 @@
                 mode = detectRouterMode({});
             }
 
-            // 按优先级保留最重要的 type/mode
+            // 按优先级保留最重要的 type/mode/base
             if (!primaryType || (TYPE_PRIORITY[result.type] || 0) > (TYPE_PRIORITY[primaryType] || 0)) {
                 primaryType = result.type;
                 primaryMode = mode;
+                primaryBase = extractReactRouterBasename(startFiber, result);
             }
 
             // 按 name::path 去重后汇入总列表
@@ -695,6 +738,7 @@
                 cachedResult = {
                     routerType: primaryType || 'Routes',
                     routerMode: primaryMode,
+                    routerBase: primaryBase,
                     routes: collectedRoutes
                 };
                 sendToExtension(cachedResult);

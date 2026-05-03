@@ -499,6 +499,65 @@ input:checked + .slider:before {
     transform: translateX(16px);
 }
 
+/* React base URL 输入区（复用 Vue 的通用样式，补充 React 专属类名） */
+.react-route-base-input-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.react-detected-base-value {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary-light);
+    background: rgba(26, 115, 232, 0.1);
+    padding: 4px 10px;
+    border-radius: 4px;
+    flex: 1;
+}
+
+.react-apply-detected-base-btn {
+    padding: 6px 14px;
+    background: var(--primary);
+    border: 1px solid var(--primary-light);
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.react-apply-detected-base-btn:hover {
+    background: var(--primary-light);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(26, 115, 232, 0.4);
+}
+
+.react-clear-base-btn {
+    padding: 6px 14px;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--on-surface-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.react-clear-base-btn:hover {
+    background: var(--error);
+    border-color: var(--error);
+    color: #ffffff;
+}
+
 /* React 路由区容器 */
 .react-router-data {
     display: flex;

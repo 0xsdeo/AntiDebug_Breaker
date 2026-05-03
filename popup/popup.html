@@ -204,6 +204,22 @@
                         <span class="react-routes-info"></span>
                     </div>
 
+                    <!-- 检测到基础路径时显示 -->
+                    <div class="react-route-base-input-container" style="display: none;">
+                        <div class="detected-base-info">
+                            <span class="detected-base-label">检测到基础路径：</span>
+                            <span class="react-detected-base-value"></span>
+                            <button class="react-apply-detected-base-btn">应用</button>
+                        </div>
+                        <div class="custom-base-input-wrapper">
+                            <label class="custom-base-label">自定义基础路径：</label>
+                            <input type="text" id="react-custom-base-input" class="custom-base-input"
+                                placeholder="留空显示标准路径，如：/admin" />
+                            <button class="react-clear-base-btn">清空</button>
+                        </div>
+                        <div class="base-hint">💡 输入后实时更新路由列表</div>
+                    </div>
+
                     <!-- 路由搜索框 -->
                     <div class="react-route-search-container" style="display: none;">
                         <input type="text" id="react-route-search-input" placeholder="Search routes...">
