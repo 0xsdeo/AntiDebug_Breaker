@@ -43,6 +43,9 @@
     const REACT_PROVIDER_TYPE = Symbol.for('react.provider');
     const REACT_MEMO_TYPE = Symbol.for('react.memo');
     const REACT_FORWARD_REF_TYPE = Symbol.for('react.forward_ref');
+    const ROUTER_FIBER_SCAN_MAX_NODES = 15000;
+    const ROUTER_NESTED_SEARCH_DEPTH = 10;
+    const CREATE_HREF_SEARCH_DEPTH = ROUTER_NESTED_SEARCH_DEPTH;
 
     // ===== 发送数据到插件 =====
     function sendToExtension(data) {
@@ -789,11 +792,10 @@
         // 企业级 React 应用组件数量庞大，且 Routes 可能藏在某个 sibling 子树深处。
         // BFS 必须先遍历完 sibling 之前所有子树才能到达目标，
         // 3000 对复杂应用往往不够用，提升到 15000 覆盖更多场景。
-        const MAX_NODES = 15000;
         let count = 0;
         let jsxRoutesCandidate = null; // JSX Routes 命中时不立刻返回，保存为候选
 
-        while (queue.length > 0 && count < MAX_NODES) {
+        while (queue.length > 0 && count < ROUTER_FIBER_SCAN_MAX_NODES) {
             const fiber = queue.shift();
             count++;
 
@@ -857,7 +859,7 @@
                 }
                 // 以上均未命中：向 React Element 嵌套链补充搜索（最多 3 层深）
                 // 处理 router 藏在 props.children.props.children.props.router 等场景
-                const nested = searchNestedReactElements(props, 4);
+                const nested = searchNestedReactElements(props, ROUTER_NESTED_SEARCH_DEPTH);
                 if (nested) return nested;
             }
 
@@ -867,8 +869,8 @@
             getLegacyReactInstanceChildren(fiber).forEach(child => queue.push(child));
         }
 
-        if (count >= MAX_NODES) {
-            console.warn('[AntiDebug] ⚠️ Fiber树遍历达到上限（3000节点），可能未完整扫描');
+        if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
+            console.warn(`[AntiDebug] Fiber树遍历达到上限（${ROUTER_FIBER_SCAN_MAX_NODES}节点），可能未完整扫描`);
         } else if (!jsxRoutesCandidate) {
             console.log(`[AntiDebug] Fiber树遍历完毕，共访问 ${count} 个节点，未找到Router`);
         }
@@ -989,17 +991,101 @@
         return list;
     }
 
-    // ===== 检测路由模式（browser / hash / memory） =====
-    function detectRouterMode(router) {
-        try {
-            const ctorName = router.history ?.constructor ?.name || '';
-            if (ctorName.toLowerCase().includes('hash')) return 'hash';
-            if (ctorName.toLowerCase().includes('memory')) return 'memory';
-        } catch (e) {}
-        if (typeof window.location.hash === 'string' && window.location.hash.startsWith('#/')) {
-            return 'hash';
+    // ===== 检测路由模式（history / hash / null） =====
+    function detectRouterModeByCreateHref(createHref) {
+        if (typeof createHref !== 'function') return null;
+        const testLocation = {
+            pathname: '/__antidebug_mode_test__',
+            search: '',
+            hash: ''
+        };
+        const candidates = [testLocation, testLocation.pathname];
+        for (const candidate of candidates) {
+            try {
+                const href = createHref(candidate);
+                if (typeof href !== 'string') continue;
+                if (href.includes('#')) return 'hash';
+                return 'history';
+            } catch (e) {}
         }
-        return 'browser';
+        return null;
+    }
+
+    function findCreateHrefInObject(root, maxDepth) {
+        if (!root || typeof root !== 'object' || maxDepth <= 0) return null;
+        const queue = [{
+            value: root,
+            depth: 0
+        }];
+        const visited = new WeakSet();
+        const fields = [
+            'router', 'history', 'navigator', 'current', 'memoizedState', 'baseState',
+            'next', 'queue', 'lastEffect', 'dependencies', 'firstContext', 'first', 'memoizedValue',
+            'pendingProps', 'memoizedProps', 'props', 'children', 'stateNode', 'context', 'value',
+            'child', 'sibling', 'alternate', '_currentElement', '_renderedComponent',
+            '_renderedChildren', '_renderedChildrenArray'
+        ];
+
+        while (queue.length > 0) {
+            const item = queue.shift();
+            const value = item.value;
+            if (!value || (typeof value !== 'object' && typeof value !== 'function')) continue;
+            if (typeof value === 'object') {
+                if (visited.has(value)) continue;
+                visited.add(value);
+            }
+
+            try {
+                if (typeof value.createHref === 'function') return value.createHref.bind(value);
+            } catch (e) {}
+
+            if (item.depth >= maxDepth || typeof value !== 'object') continue;
+            if (typeof Window !== 'undefined' && value instanceof Window) continue;
+            if (typeof Node !== 'undefined' && value instanceof Node) continue;
+
+            if (Array.isArray(value)) {
+                value.forEach(child => queue.push({
+                    value: child,
+                    depth: item.depth + 1
+                }));
+                continue;
+            }
+
+            for (const field of fields) {
+                try {
+                    if (value[field]) {
+                        queue.push({
+                            value: value[field],
+                            depth: item.depth + 1
+                        });
+                    }
+                } catch (e) {}
+            }
+        }
+        return null;
+    }
+
+    function findCreateHrefInFiber(startFiber) {
+        const createHref = findCreateHrefInObject(startFiber, CREATE_HREF_SEARCH_DEPTH);
+        if (createHref) return createHref;
+        if (startFiber && startFiber.alternate) {
+            return findCreateHrefInObject(startFiber.alternate, CREATE_HREF_SEARCH_DEPTH);
+        }
+        return null;
+    }
+
+    function detectRouterMode(router, startFiber) {
+        const directMode = detectRouterModeByCreateHref(router && router.createHref && router.createHref.bind(router));
+        if (directMode) return directMode;
+
+        const historyMode = detectRouterModeByCreateHref(router && router.history && router.history.createHref && router.history.createHref.bind(router.history));
+        if (historyMode) return historyMode;
+
+        const createHref = findCreateHrefInFiber(startFiber);
+        const fiberMode = detectRouterModeByCreateHref(createHref);
+        if (fiberMode) return fiberMode;
+
+        return null;
     }
 
     // ===== 主尝试函数：串联两阶段扫描并输出结果 =====
@@ -1021,7 +1107,7 @@
         const collectedRoutes = []; // 汇总所有容器的路由
         const seenKeys = new Set(); // 去重用：name::path
         let primaryType = null;
-        let primaryMode = 'browser';
+        let primaryMode = null;
         let primaryBase = '';
         let found = false;
 
@@ -1034,10 +1120,10 @@
             found = true;
 
             let routes = [];
-            let mode = 'browser';
+            let mode = null;
 
             if (result.type === 'RouterProvider') {
-                mode = detectRouterMode(result.router);
+                mode = detectRouterMode(result.router, startFiber);
                 routes = extractRouterProviderRoutes(result.router.routes);
                 console.log(`\n📋 React Router 路由列表 [RouterProvider - ${mode} 模式]：`);
                 console.table(routes.map(r => ({
@@ -1047,7 +1133,7 @@
                 console.log('\n🔗 Router 实例：', result.router);
             } else if (result.type === 'GitHubRoutes') {
                 routes = extractGitHubRoutes(result.routes);
-                mode = 'browser';
+                mode = detectRouterMode(null, startFiber);
                 console.log('\n📋 React Router 路由列表 [GitHub 自研路由]：');
                 console.table(routes.map(r => ({
                     Name: r.name,
@@ -1055,7 +1141,7 @@
                 })));
             } else if (result.type === 'ContextRoutes') {
                 routes = extractRouterProviderRoutes(result.routes);
-                mode = detectRouterMode({});
+                mode = detectRouterMode(null, startFiber);
                 console.log('\n[AntiDebug] React Router 路由列表 [Context routes 模式]:');
                 console.table(routes.map(r => ({
                     Name: r.name,
@@ -1063,6 +1149,7 @@
                 })));
             } else if (result.type === 'LegacyRoutes') {
                 routes = extractLegacyRoutes(result.routes);
+                mode = detectRouterMode(null, startFiber);
                 console.log('\n📋 React Router 路由列表 [v3/v4 Legacy 模式]：');
                 console.table(routes.map(r => ({
                     Name: r.name,
@@ -1076,7 +1163,7 @@
                     Name: r.name || '(unnamed)',
                     Path: r.path
                 })));
-                mode = detectRouterMode({});
+                mode = detectRouterMode(null, startFiber);
             }
 
             // 按优先级保留最重要的 type/mode/base

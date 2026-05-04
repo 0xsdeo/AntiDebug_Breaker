@@ -1751,7 +1751,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (reactRouteSearchContainer) reactRouteSearchContainer.style.display = 'flex';
         if (reactRoutesActionsFooter) reactRoutesActionsFooter.style.display = 'flex';
 
-        const routerMode = reactRouterInfo.routerMode || 'browser';
+        const routerMode = reactRouterInfo.routerMode ?? null;
         let baseUrl = window.location.origin;
         if (currentTab_obj && currentTab_obj.url) {
             try { baseUrl = new URL(currentTab_obj.url).origin; } catch (e) {}
@@ -1777,16 +1777,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 构建完整 URL（含 base 处理）
         function buildFullUrl(normalizedPath) {
+            const baseUrlWithoutTrailingSlash = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+
             if (currentCustomBase && currentCustomBase.trim() !== '') {
                 const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
                 if (routerMode === 'hash') {
-                    return cleanUrl(baseUrl + cleanBase + '#' + normalizedPath);
+                    return `${baseUrlWithoutTrailingSlash}${cleanBase}/#/${cleanPath}`;
                 } else {
                     return cleanUrl(baseUrl + cleanBase + normalizedPath);
                 }
             } else {
                 if (routerMode === 'hash') {
-                    return baseUrl + '#' + normalizedPath;
+                    return `${baseUrlWithoutTrailingSlash}/#/${cleanPath}`;
                 } else {
                     return baseUrl + normalizedPath;
                 }
