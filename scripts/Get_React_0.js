@@ -403,16 +403,49 @@
             });
         };
 
+        const getContainerRootFibers = containerInfo => {
+            const roots = [];
+            const addRoot = fiber => {
+                if (fiber && typeof fiber === 'object' && !roots.includes(fiber)) {
+                    roots.push(fiber);
+                }
+            };
+
+            try {
+                if (!containerInfo || !containerInfo.value) return roots;
+
+                if (containerInfo.prop === '_reactRootContainer') {
+                    addRoot(containerInfo.value ?._internalRoot ?.current);
+                    addRoot(containerInfo.value ?.current);
+                    return roots;
+                }
+
+                addRoot(containerInfo.value ?.stateNode ?.current);
+                addRoot(containerInfo.value);
+            } catch (e) {}
+
+            return roots;
+        };
+
         const containers = findReactContainers();
         for (const container of containers) {
             addStartFiber(getStartFiber(container), container.prop, container.value);
+            getContainerRootFibers(container).forEach(rootFiber => {
+                addStartFiber(rootFiber, `${container.prop}.root`, container.value);
+            });
         }
 
         const hostFibers = findReactHostFibers();
         for (const item of hostFibers) {
             addStartFiber(getStartFiberFromHostFiber(item.fiber), item.prop, item.fiber);
+            if (hasLikelyRouteDataNearFiber(item.fiber)) {
+                addStartFiber(item.fiber, `${item.prop}.local`, item.fiber);
+            }
             if (item.fiber && item.fiber.alternate) {
                 addStartFiber(getStartFiberFromHostFiber(item.fiber.alternate), `${item.prop}.alternate`, item.fiber.alternate);
+                if (hasLikelyRouteDataNearFiber(item.fiber.alternate)) {
+                    addStartFiber(item.fiber.alternate, `${item.prop}.alternate.local`, item.fiber.alternate);
+                }
             }
         }
 
@@ -476,6 +509,52 @@
         if (Array.isArray(props.routes) && props.routes.length > 0) return props.routes;
         if (isLegacyRouterObject(props.router)) return props.router.routes;
         return [];
+    }
+
+    function isRouteConfigArray(routes) {
+        if (!Array.isArray(routes) || routes.length === 0) return false;
+
+        let checked = 0;
+        let routeLike = 0;
+        for (const route of routes) {
+            if (!route || typeof route !== 'object') continue;
+            checked++;
+            if (
+                typeof route.path === 'string' &&
+                (
+                    route.element !== undefined ||
+                    route.component !== undefined ||
+                    route.Component !== undefined ||
+                    route.render !== undefined ||
+                    route.lazy !== undefined ||
+                    Array.isArray(route.children) ||
+                    route.meta !== undefined ||
+                    route.index === true
+                )
+            ) {
+                routeLike++;
+            }
+            if (checked >= 20) break;
+        }
+
+        return routeLike > 0 && routeLike >= Math.ceil(checked * 0.5);
+    }
+
+    function getRouteConfigArrayFromObject(value) {
+        if (!value || typeof value !== 'object') return null;
+        try {
+            if (isRouteConfigArray(value.routeConfig)) return value.routeConfig;
+        } catch (e) {}
+        try {
+            if (value.routeRelatedConfig && isRouteConfigArray(value.routeRelatedConfig.routeConfig)) {
+                return value.routeRelatedConfig.routeConfig;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function isRouteConfigRoutes(props) {
+        return !!getRouteConfigArrayFromObject(props);
     }
 
     // ===== GitHub 专属路由检测 =====
@@ -578,6 +657,12 @@
                 };
             }
         }
+        if (isRouteConfigRoutes(value)) {
+            return {
+                type: 'ContextRoutes',
+                routes: getRouteConfigArrayFromObject(value)
+            };
+        }
         if (value.value && value.value !== value && typeof value.value === 'object') {
             return detectRouterFromContextValue(value.value, allowLooseRoutes);
         }
@@ -629,6 +714,15 @@
             } catch (e) {}
         }
 
+        function readBasenameFromObject(value) {
+            if (!value || typeof value !== 'object') return '';
+            try {
+                const bn = value.basename;
+                if (typeof bn === 'string' && bn !== '/' && bn.trim() !== '') return bn;
+            } catch (e) {}
+            return '';
+        }
+
         // JSX Routes / Legacy：走 Fiber 依赖上下文链
         // 路径示例：fiber.dependencies.firstContext.next.memoizedValue.basename
         if (!startFiber) return '';
@@ -642,14 +736,38 @@
             visited.add(fiber);
 
             try {
+                const basenameSources = [
+                    fiber.memoizedProps,
+                    fiber.pendingProps,
+                    fiber.props,
+                    fiber.memoizedState && fiber.memoizedState.element && fiber.memoizedState.element.props,
+                    fiber.stateNode && fiber.stateNode.props,
+                    fiber.stateNode
+                ];
+
+                const alt = fiber.alternate;
+                if (alt && alt !== fiber) {
+                    basenameSources.push(
+                        alt.memoizedProps,
+                        alt.pendingProps,
+                        alt.props,
+                        alt.memoizedState && alt.memoizedState.element && alt.memoizedState.element.props,
+                        alt.stateNode && alt.stateNode.props,
+                        alt.stateNode
+                    );
+                }
+
+                for (const source of basenameSources) {
+                    const bn = readBasenameFromObject(source);
+                    if (bn) return bn;
+                }
+
                 if (fiber.dependencies) {
                     let ctx = fiber.dependencies.firstContext;
                     while (ctx) {
                         const val = ctx.memoizedValue;
-                        if (val && typeof val === 'object') {
-                            const bn = val.basename;
-                            if (typeof bn === 'string' && bn !== '/' && bn.trim() !== '') return bn;
-                        }
+                        const bn = readBasenameFromObject(val);
+                        if (bn) return bn;
                         ctx = ctx.next;
                     }
                 }
@@ -690,6 +808,14 @@
             typeof p.to === 'string' ||
             typeof p.from === 'string'
         );
+    }
+
+    function getReactElementProps(value) {
+        if (!value || typeof value !== 'object') return null;
+        if (value.props && typeof value.props === 'object') return value.props;
+        if (value.pendingProps && typeof value.pendingProps === 'object') return value.pendingProps;
+        if (value.memoizedProps && typeof value.memoizedProps === 'object') return value.memoizedProps;
+        return null;
     }
 
     function isRoutesComponent(props) {
@@ -743,6 +869,210 @@
         return null;
     }
 
+    function findNestedJSXRoutesCandidate(value, maxDepth) {
+        if (!value || typeof value !== 'object' || maxDepth < 0) return null;
+
+        const queue = [{
+            value,
+            depth: 0
+        }];
+        const visited = new WeakSet();
+        let count = 0;
+
+        const enqueueChild = (child, depth) => {
+            if (!child) return;
+            if (Array.isArray(child)) {
+                child.forEach(item => enqueueChild(item, depth));
+                return;
+            }
+            if (child && typeof child === 'object') {
+                queue.push({
+                    value: child,
+                    depth
+                });
+            }
+        };
+
+        while (queue.length > 0 && count < 300) {
+            const item = queue.shift();
+            const currentValue = item.value;
+            count++;
+
+            if (!currentValue || typeof currentValue !== 'object') continue;
+            if (visited.has(currentValue)) continue;
+            visited.add(currentValue);
+
+            const routes = extractJSXRoutes(currentValue);
+            if (
+                routes.length >= 2 ||
+                routes.some(route => route.path === '/' || route.path === '*')
+            ) {
+                return {
+                    type: 'Routes',
+                    props: currentValue
+                };
+            }
+
+            if (item.depth >= maxDepth) continue;
+            const currentProps = getReactElementProps(currentValue) || currentValue;
+            if (!currentProps || typeof currentProps !== 'object') continue;
+            const children = currentProps.children;
+            if (!children) continue;
+            enqueueChild(children, item.depth + 1);
+        }
+
+        return null;
+    }
+
+    function isMenuRoutePath(value) {
+        return typeof value === 'string' &&
+            value.length > 1 &&
+            value.charAt(0) === '/' &&
+            !/^\/\//.test(value) &&
+            !/\s/.test(value);
+    }
+
+    function extractTextFromReactChildren(children) {
+        if (typeof children === 'string') return children;
+        if (!children || typeof children !== 'object') return '';
+        const list = Array.isArray(children) ? children : [children];
+        for (const child of list) {
+            if (typeof child === 'string' && child.trim()) return child.trim();
+            const props = getReactElementProps(child);
+            if (props) {
+                const nestedText = extractTextFromReactChildren(props.children || props.label || props.title);
+                if (nestedText) return nestedText;
+            }
+        }
+        return '';
+    }
+
+    function extractMenuRoutes(value, maxDepth) {
+        const routes = [];
+        const seen = new Set();
+        const visited = new WeakSet();
+        const queue = [{
+            value,
+            depth: 0
+        }];
+        let count = 0;
+
+        const pushRoute = (path, name) => {
+            if (!isMenuRoutePath(path) || seen.has(path)) return;
+            seen.add(path);
+            routes.push({
+                name: name || '',
+                path
+            });
+        };
+
+        const enqueue = (child, depth) => {
+            if (!child || depth > maxDepth) return;
+            if (Array.isArray(child)) {
+                child.forEach(item => enqueue(item, depth));
+                return;
+            }
+            if (child && typeof child === 'object') {
+                queue.push({
+                    value: child,
+                    depth
+                });
+            }
+        };
+
+        while (queue.length > 0 && count < 500) {
+            const item = queue.shift();
+            const current = item.value;
+            count++;
+            if (!current || typeof current !== 'object') continue;
+            if (visited.has(current)) continue;
+            visited.add(current);
+
+            const props = getReactElementProps(current) || current;
+            if (!props || typeof props !== 'object') continue;
+
+            const path =
+                props.rule ||
+                props.eventKey ||
+                props.path ||
+                props.to ||
+                current.key ||
+                props.key;
+
+            const hasMenuSignals =
+                props.eventKey !== undefined ||
+                props.rule !== undefined ||
+                props.selectedKeys !== undefined ||
+                props.openKeys !== undefined ||
+                props.mode !== undefined ||
+                props.icon !== undefined ||
+                props.itemIcon !== undefined;
+
+            if (hasMenuSignals && isMenuRoutePath(path)) {
+                const name =
+                    (typeof props.title === 'string' && props.title) ||
+                    (typeof props.label === 'string' && props.label) ||
+                    extractTextFromReactChildren(props.children);
+                pushRoute(path, name);
+            }
+
+            if (item.depth >= maxDepth) continue;
+            enqueue(props.children, item.depth + 1);
+            enqueue(props.items, item.depth + 1);
+        }
+
+        return routes;
+    }
+
+    function findNestedMenuRoutesCandidate(value, maxDepth) {
+        const routes = extractMenuRoutes(value, maxDepth);
+        if (routes.length >= 2) {
+            return {
+                type: 'MenuRoutes',
+                routes
+            };
+        }
+        return null;
+    }
+
+    function hasLikelyRouteDataNearFiber(fiber) {
+        if (!fiber || typeof fiber !== 'object') return false;
+
+        const queue = [fiber];
+        const visited = new WeakSet();
+        let count = 0;
+
+        while (queue.length > 0 && count < 80) {
+            const current = queue.shift();
+            count++;
+            if (!current || typeof current !== 'object') continue;
+            if (visited.has(current)) continue;
+            visited.add(current);
+
+            const propsSources = [
+                current.memoizedProps,
+                current.pendingProps,
+                current.props,
+                current.stateNode && current.stateNode.props
+            ];
+
+            for (const props of propsSources) {
+                if (!props || typeof props !== 'object') continue;
+                if (findNestedJSXRoutesCandidate(props, 4)) return true;
+                if (findNestedMenuRoutesCandidate(props, 4)) return true;
+                if (props.children && typeof props.children === 'object') {
+                    if (findNestedJSXRoutesCandidate(props.children, 4)) return true;
+                    if (findNestedMenuRoutesCandidate(props.children, 4)) return true;
+                }
+            }
+
+            if (current.child && typeof current.child === 'object') queue.push(current.child);
+            if (current.sibling && typeof current.sibling === 'object') queue.push(current.sibling);
+        }
+
+        return false;
+    }
+
     function searchNestedReactElements(props, maxDepth) {
         if (maxDepth <= 0 || !props || typeof props !== 'object') return null;
 
@@ -758,6 +1088,10 @@
             type: 'GitHubRoutes',
             routes: props.routes
         };
+        if (isRouteConfigRoutes(props)) return {
+            type: 'ContextRoutes',
+            routes: getRouteConfigArrayFromObject(props)
+        };
 
         const children = props.children;
         if (!children) return null;
@@ -769,6 +1103,142 @@
                 if (result) return result;
             }
         }
+        return null;
+    }
+
+    function getRouteConfigResultFromFiberLike(fiber) {
+        if (!fiber || typeof fiber !== 'object') return null;
+
+        const propsSources = [
+            fiber.pendingProps,
+            fiber.memoizedProps,
+            fiber.stateNode && fiber.stateNode.props
+        ];
+        const alt = fiber.alternate;
+        if (alt && alt !== fiber) {
+            propsSources.push(alt.pendingProps, alt.memoizedProps, alt.stateNode && alt.stateNode.props);
+        }
+
+        for (const props of propsSources) {
+            if (isRouteConfigRoutes(props)) {
+                return {
+                    type: 'ContextRoutes',
+                    routes: getRouteConfigArrayFromObject(props)
+                };
+            }
+        }
+
+        return null;
+    }
+
+    function findRouteConfigInObject(root, maxDepth) {
+        if (!root || typeof root !== 'object') return null;
+
+        const queue = [{
+            value: root,
+            depth: 0
+        }];
+        const visited = new WeakSet();
+        const fields = [
+            'routeConfig', 'routeRelatedConfig', 'memoizedState', 'baseState',
+            'next', 'value', 'current', 'deps', 'queue', 'props', 'children'
+        ];
+        let count = 0;
+
+        while (queue.length > 0 && count < 300) {
+            const item = queue.shift();
+            const value = item.value;
+            count++;
+
+            if (!value || typeof value !== 'object') continue;
+            if (visited.has(value)) continue;
+            visited.add(value);
+
+            if (isRouteConfigArray(value)) {
+                return {
+                    type: 'ContextRoutes',
+                    routes: value
+                };
+            }
+
+            const routes = getRouteConfigArrayFromObject(value);
+            if (routes) {
+                return {
+                    type: 'ContextRoutes',
+                    routes
+                };
+            }
+
+            if (item.depth >= maxDepth) continue;
+
+            if (Array.isArray(value)) {
+                value.forEach(child => {
+                    if (child && typeof child === 'object') {
+                        queue.push({
+                            value: child,
+                            depth: item.depth + 1
+                        });
+                    }
+                });
+                continue;
+            }
+
+            for (const field of fields) {
+                try {
+                    if (value[field] && typeof value[field] === 'object') {
+                        queue.push({
+                            value: value[field],
+                            depth: item.depth + 1
+                        });
+                    }
+                } catch (e) {}
+            }
+        }
+
+        return null;
+    }
+
+    function findRouteConfigInEffectFibers(fiber) {
+        if (!fiber || typeof fiber !== 'object') return null;
+
+        const roots = [
+            fiber.updateQueue && fiber.updateQueue.lastEffect,
+            fiber.updateQueue && fiber.updateQueue.firstEffect,
+            fiber.lastEffect,
+            fiber.firstEffect
+        ];
+
+        const queue = [];
+        roots.forEach(root => {
+            if (root && typeof root === 'object') queue.push(root);
+        });
+
+        const visited = new WeakSet();
+        let count = 0;
+        while (queue.length > 0 && count < 120) {
+            const current = queue.shift();
+            count++;
+            if (!current || typeof current !== 'object') continue;
+            if (visited.has(current)) continue;
+            visited.add(current);
+
+            const result = getRouteConfigResultFromFiberLike(current);
+            if (result) return result;
+
+            const nestedResult = findRouteConfigInObject(current, 80);
+            if (nestedResult) return nestedResult;
+
+            try {
+                if (current.next && typeof current.next === 'object') queue.push(current.next);
+                if (current.nextEffect && typeof current.nextEffect === 'object') queue.push(current.nextEffect);
+                if (current.child && typeof current.child === 'object') queue.push(current.child);
+                if (current.sibling && typeof current.sibling === 'object') queue.push(current.sibling);
+                if (current.alternate && current.alternate !== current && typeof current.alternate === 'object') {
+                    queue.push(current.alternate);
+                }
+            } catch (e) {}
+        }
+
         return null;
     }
 
@@ -784,6 +1254,31 @@
     //   JSX Routes     → 仅作候选，继续扫完整棵树后若无更好结果才返回
     //                   （最易误判，普通组件的 children 也可能满足条件）
     //   以上均未命中时，searchNestedReactElements 向 React Element 嵌套链中补充搜索
+    function routerResultHasRoutes(result) {
+        if (!result || typeof result !== 'object') return false;
+        try {
+            if (result.type === 'RouterProvider') {
+                return extractRouterProviderRoutes(result.router && result.router.routes).length > 0;
+            }
+            if (result.type === 'GitHubRoutes') {
+                return extractGitHubRoutes(result.routes).length > 0;
+            }
+            if (result.type === 'ContextRoutes') {
+                return extractRouterProviderRoutes(result.routes).length > 0;
+            }
+            if (result.type === 'LegacyRoutes') {
+                return extractLegacyRoutes(result.routes).length > 0;
+            }
+            if (result.type === 'Routes') {
+                return extractJSXRoutes(result.props).length > 0;
+            }
+            if (result.type === 'MenuRoutes') {
+                return Array.isArray(result.routes) && result.routes.length > 0;
+            }
+        } catch (e) {}
+        return false;
+    }
+
     function findRouterInFiber(startFiber) {
         if (!startFiber) return null;
 
@@ -795,6 +1290,7 @@
         let count = 0;
         let jsxRoutesCandidate = null; // JSX Routes 命中时不立刻返回，保存为候选
 
+        let menuRoutesCandidate = null;
         while (queue.length > 0 && count < ROUTER_FIBER_SCAN_MAX_NODES) {
             const fiber = queue.shift();
             count++;
@@ -807,7 +1303,7 @@
             // 1. 当前 fiber 的 memoizedProps / pendingProps
             // 2. alternate fiber 的 memoizedProps / pendingProps
             //    （路由数据有时仅存于 alternate，不加入队列只读其 props）
-            const propsSources = [fiber.memoizedProps, fiber.pendingProps];
+            const propsSources = [fiber.memoizedProps, fiber.pendingProps, fiber.props];
             if (fiber._currentElement && fiber._currentElement.props) {
                 propsSources.push(fiber._currentElement.props);
             }
@@ -815,44 +1311,78 @@
                 propsSources.push(fiber.stateNode.props);
             }
             const contextRouter = searchRouterInFiberContext(fiber);
-            if (contextRouter) return contextRouter;
+            if (contextRouter && routerResultHasRoutes(contextRouter)) return contextRouter;
+
+            const effectRouteConfig = findRouteConfigInEffectFibers(fiber);
+            if (effectRouteConfig && routerResultHasRoutes(effectRouteConfig)) return effectRouteConfig;
+
+            const hookRouteConfig = findRouteConfigInObject(fiber.memoizedState, 80);
+            if (hookRouteConfig && routerResultHasRoutes(hookRouteConfig)) return hookRouteConfig;
 
             const alt = fiber.alternate;
             if (alt && alt !== fiber && !visited.has(alt)) {
-                propsSources.push(alt.memoizedProps, alt.pendingProps);
+                const altHookRouteConfig = findRouteConfigInObject(alt.memoizedState, 80);
+                if (altHookRouteConfig && routerResultHasRoutes(altHookRouteConfig)) return altHookRouteConfig;
+
+                propsSources.push(alt.memoizedProps, alt.pendingProps, alt.props);
                 if (alt.stateNode && alt.stateNode.props) {
                     propsSources.push(alt.stateNode.props);
+                }
+                if (hasLikelyRouteDataNearFiber(alt)) {
+                    queue.push(alt);
                 }
             }
 
             for (const props of propsSources) {
                 if (!props || typeof props !== 'object') continue;
+                const jsxSources = [props];
+                if (props.children && typeof props.children === 'object') {
+                    jsxSources.push(props.children);
+                }
 
                 // RouterProvider：立即返回，特征最明确
                 if (isRouterProvider(props)) {
-                    return {
+                    const result = {
                         type: 'RouterProvider',
                         router: props.router
                     };
+                    if (routerResultHasRoutes(result)) return result;
                 }
                 // LegacyRoutes：立即返回，v3/v4 特有结构
                 if (isLegacyRouterRoutes(props)) {
-                    return {
+                    const result = {
                         type: 'LegacyRoutes',
                         routes: getLegacyRoutes(props)
                     };
+                    if (routerResultHasRoutes(result)) return result;
                 }
                 // GitHub 专属路由：立即返回（仅在 github.com 生效）
                 if (isGitHubRoutes(props)) {
-                    return {
+                if (isGitHubRoutes(props)) {
+                    const result = {
                         type: 'GitHubRoutes',
                         routes: props.routes
                     };
+                    if (routerResultHasRoutes(result)) return result;
+                }
+                }
+                if (isRouteConfigRoutes(props)) {
+                    const result = {
+                        type: 'ContextRoutes',
+                        routes: getRouteConfigArrayFromObject(props)
+                    };
+                    if (routerResultHasRoutes(result)) return result;
                 }
                 // JSX Routes：仅保存第一个命中，继续扫描不返回
                 // 避免因浅层误判提前退出，错过更深处的真实路由
                 if (!jsxRoutesCandidate) {
-                    const jsxCandidate = getJSXRoutesCandidate(props, fiber);
+                    let jsxCandidate = getJSXRoutesCandidate(props, fiber);
+                    if (!jsxCandidate) {
+                        for (const jsxSource of jsxSources) {
+                            jsxCandidate = findNestedJSXRoutesCandidate(jsxSource, ROUTER_NESTED_SEARCH_DEPTH);
+                            if (jsxCandidate) break;
+                        }
+                    }
                     if (jsxCandidate) {
                         jsxRoutesCandidate = jsxCandidate;
                     }
@@ -860,7 +1390,16 @@
                 // 以上均未命中：向 React Element 嵌套链补充搜索（最多 3 层深）
                 // 处理 router 藏在 props.children.props.children.props.router 等场景
                 const nested = searchNestedReactElements(props, ROUTER_NESTED_SEARCH_DEPTH);
-                if (nested) return nested;
+                if (!menuRoutesCandidate) {
+                    for (const jsxSource of jsxSources) {
+                        const menuCandidate = findNestedMenuRoutesCandidate(jsxSource, ROUTER_NESTED_SEARCH_DEPTH);
+                        if (menuCandidate) {
+                            menuRoutesCandidate = menuCandidate;
+                            break;
+                        }
+                    }
+                }
+                if (nested && routerResultHasRoutes(nested)) return nested;
             }
 
             // 严格只走Fiber树导航链路
@@ -876,8 +1415,129 @@
         }
 
         // RouterProvider / LegacyRoutes 未找到，用 JSX Routes 候选兜底（可能为误判）
-        return jsxRoutesCandidate || null;
+        return jsxRoutesCandidate || menuRoutesCandidate || null;
     }
+
+    function findRouterInFiberClean(startFiber) {
+        if (!startFiber) return null;
+
+        const queue = [startFiber];
+        const visited = new WeakSet();
+        let count = 0;
+        let jsxRoutesCandidate = null;
+        let menuRoutesCandidate = null;
+
+        const pushFiber = fiber => {
+            if (fiber && typeof fiber === 'object') queue.push(fiber);
+        };
+
+        while (queue.length > 0 && count < ROUTER_FIBER_SCAN_MAX_NODES) {
+            const fiber = queue.shift();
+            count++;
+
+            if (!fiber || typeof fiber !== 'object') continue;
+            if (visited.has(fiber)) continue;
+            visited.add(fiber);
+
+            const propsSources = [
+                fiber.memoizedProps,
+                fiber.pendingProps,
+                fiber.props,
+                fiber._currentElement && fiber._currentElement.props,
+                fiber.stateNode && fiber.stateNode.props
+            ];
+
+            const contextRouter = searchRouterInFiberContext(fiber);
+            if (contextRouter && routerResultHasRoutes(contextRouter)) return contextRouter;
+
+            const effectRouteConfig = findRouteConfigInEffectFibers(fiber);
+            if (effectRouteConfig && routerResultHasRoutes(effectRouteConfig)) return effectRouteConfig;
+
+            const hookRouteConfig = findRouteConfigInObject(fiber.memoizedState, 80);
+            if (hookRouteConfig && routerResultHasRoutes(hookRouteConfig)) return hookRouteConfig;
+
+            const alt = fiber.alternate;
+            if (alt && alt !== fiber && !visited.has(alt)) {
+                const altHookRouteConfig = findRouteConfigInObject(alt.memoizedState, 80);
+                if (altHookRouteConfig && routerResultHasRoutes(altHookRouteConfig)) return altHookRouteConfig;
+
+                propsSources.push(
+                    alt.memoizedProps,
+                    alt.pendingProps,
+                    alt.props,
+                    alt._currentElement && alt._currentElement.props,
+                    alt.stateNode && alt.stateNode.props
+                );
+
+                if (hasLikelyRouteDataNearFiber(alt)) pushFiber(alt);
+            }
+
+            for (const props of propsSources) {
+                if (!props || typeof props !== 'object') continue;
+
+                const jsxSources = [props];
+                if (props.children && typeof props.children === 'object') jsxSources.push(props.children);
+
+                if (isRouterProvider(props)) {
+                    const result = { type: 'RouterProvider', router: props.router };
+                    if (routerResultHasRoutes(result)) return result;
+                }
+
+                if (isLegacyRouterRoutes(props)) {
+                    const result = { type: 'LegacyRoutes', routes: getLegacyRoutes(props) };
+                    if (routerResultHasRoutes(result)) return result;
+                }
+
+                if (isGitHubRoutes(props)) {
+                    const result = { type: 'GitHubRoutes', routes: props.routes };
+                    if (routerResultHasRoutes(result)) return result;
+                }
+
+                if (isRouteConfigRoutes(props)) {
+                    const result = { type: 'ContextRoutes', routes: getRouteConfigArrayFromObject(props) };
+                    if (routerResultHasRoutes(result)) return result;
+                }
+
+                if (!jsxRoutesCandidate) {
+                    let jsxCandidate = getJSXRoutesCandidate(props, fiber);
+                    if (!jsxCandidate) {
+                        for (const jsxSource of jsxSources) {
+                            jsxCandidate = findNestedJSXRoutesCandidate(jsxSource, ROUTER_NESTED_SEARCH_DEPTH);
+                            if (jsxCandidate) break;
+                        }
+                    }
+                    if (jsxCandidate) jsxRoutesCandidate = jsxCandidate;
+                }
+
+                if (!menuRoutesCandidate) {
+                    for (const jsxSource of jsxSources) {
+                        const menuCandidate = findNestedMenuRoutesCandidate(jsxSource, ROUTER_NESTED_SEARCH_DEPTH);
+                        if (menuCandidate) {
+                            menuRoutesCandidate = menuCandidate;
+                            break;
+                        }
+                    }
+                }
+
+                const nested = searchNestedReactElements(props, ROUTER_NESTED_SEARCH_DEPTH);
+                if (nested && routerResultHasRoutes(nested)) return nested;
+            }
+
+            pushFiber(fiber.child);
+            pushFiber(fiber.sibling);
+            getLegacyReactInstanceChildren(fiber).forEach(pushFiber);
+        }
+
+        if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
+            console.warn(`[AntiDebug] Fiber tree scan reached ${ROUTER_FIBER_SCAN_MAX_NODES} nodes; result may be incomplete`);
+        } else if (!jsxRoutesCandidate && !menuRoutesCandidate) {
+            console.log(`[AntiDebug] Fiber tree scan finished, visited ${count} nodes, no Router found`);
+        }
+
+        return jsxRoutesCandidate || menuRoutesCandidate || null;
+    }
+
+    findRouterInFiber = findRouterInFiberClean;
 
     // ===== 路由提取：React Router v3/v4 Legacy 模式 =====
     // 路由结构：{ path, name, component/getComponent, childRoutes, indexRoute }
@@ -900,6 +1560,9 @@
             // 递归处理 childRoutes（v3/v4 的嵌套路由字段）
             if (Array.isArray(route.childRoutes) && route.childRoutes.length > 0) {
                 list.push(...extractLegacyRoutes(route.childRoutes, fullPath));
+            }
+            if (Array.isArray(route.routes) && route.routes.length > 0) {
+                list.push(...extractLegacyRoutes(route.routes, fullPath));
             }
         }
         return list;
@@ -932,7 +1595,70 @@
     function extractJSXRoutes(props, prefix) {
         prefix = prefix || '';
         const list = [];
-        if (!props || !props.children) return list;
+        if (!props) return list;
+
+        if (Array.isArray(props)) {
+            for (const item of props) {
+                list.push(...extractJSXRoutes(item, prefix));
+            }
+            return list;
+        }
+
+        if (typeof props !== 'object') return list;
+        const elementProps = getReactElementProps(props);
+
+        if (elementProps && (typeof elementProps.path === 'string' || Array.isArray(elementProps.path) || elementProps.index === true || typeof elementProps.to === 'string' || typeof elementProps.from === 'string')) {
+            let routePrefix = prefix;
+            if (typeof elementProps.path === 'string') {
+                const fullPath = joinPath(prefix, elementProps.path);
+                list.push({
+                    name: '',
+                    path: fullPath
+                });
+                routePrefix = fullPath;
+            } else if (Array.isArray(elementProps.path) && elementProps.path.length > 0) {
+                for (const singlePath of elementProps.path) {
+                    if (typeof singlePath === 'string') {
+                        list.push({
+                            name: '',
+                            path: joinPath(prefix, singlePath)
+                        });
+                    }
+                }
+                if (typeof elementProps.path[0] === 'string') {
+                    routePrefix = joinPath(prefix, elementProps.path[0]);
+                }
+            } else if (elementProps.index === true) {
+                list.push({
+                    name: '',
+                    path: prefix || '/'
+                });
+            } else {
+                if (typeof elementProps.from === 'string') {
+                    list.push({
+                        name: '(redirect)',
+                        path: joinPath(prefix, elementProps.from)
+                    });
+                }
+                if (typeof elementProps.to === 'string') {
+                    list.push({
+                        name: '(redirect鈫?',
+                        path: joinPath(prefix, elementProps.to)
+                    });
+                }
+            }
+
+            if (elementProps.children) {
+                list.push(...extractJSXRoutes(elementProps.children, routePrefix));
+            }
+            return list;
+        }
+
+        if (elementProps && elementProps !== props) {
+            props = elementProps;
+        }
+
+        if (!props.children) return list;
 
         const subs = Array.isArray(props.children) ? props.children : [props.children];
         for (const sub of subs) {
@@ -1020,10 +1746,13 @@
         const visited = new WeakSet();
         const fields = [
             'router', 'history', 'navigator', 'current', 'memoizedState', 'baseState',
-            'next', 'queue', 'lastEffect', 'dependencies', 'firstContext', 'first', 'memoizedValue',
+            'next', 'queue', 'updateQueue', 'lastEffect', 'firstEffect', 'nextEffect', 'deps',
+            'dependencies', 'firstContext', 'first', 'memoizedValue',
             'pendingProps', 'memoizedProps', 'props', 'children', 'stateNode', 'context', 'value',
             'child', 'sibling', 'alternate', '_currentElement', '_renderedComponent',
-            '_renderedChildren', '_renderedChildrenArray'
+            '_renderedChildren', '_renderedChildrenArray', '_context', '_instance',
+            'mergedProps', 'renderedElement', '_hostContainerInfo', '_topLevelWrapper',
+            'store', 'Plugins', 'elementType', 'type', 'config'
         ];
 
         while (queue.length > 0) {
@@ -1065,7 +1794,390 @@
         return null;
     }
 
+    function getCreateHrefFromObject(value) {
+        if (!value || typeof value !== 'object') return null;
+
+        function readCreateHrefFromContainer(container) {
+            if (!container || typeof container !== 'object') return null;
+            try {
+                if (typeof container.createHref === 'function') {
+                    return container.createHref.bind(container);
+                }
+            } catch (e) {}
+            try {
+                if (container.history && typeof container.history.createHref === 'function') {
+                    return container.history.createHref.bind(container.history);
+                }
+            } catch (e) {}
+            try {
+                if (container.navigator && typeof container.navigator.createHref === 'function') {
+                    return container.navigator.createHref.bind(container.navigator);
+                }
+            } catch (e) {}
+            try {
+                if (container.router && typeof container.router.createHref === 'function') {
+                    return container.router.createHref.bind(container.router);
+                }
+            } catch (e) {}
+            try {
+                if (container.router && container.router.history && typeof container.router.history.createHref === 'function') {
+                    return container.router.history.createHref.bind(container.router.history);
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        const directCreateHref = readCreateHrefFromContainer(value);
+        if (directCreateHref) return directCreateHref;
+
+        try {
+            const currentCreateHref = readCreateHrefFromContainer(value.current);
+            if (currentCreateHref) return currentCreateHref;
+        } catch (e) {}
+
+        try {
+            const valueCreateHref = readCreateHrefFromContainer(value.value);
+            if (valueCreateHref) return valueCreateHref;
+        } catch (e) {}
+
+        try {
+            const contextCreateHref = readCreateHrefFromContainer(value._context);
+            if (contextCreateHref) return contextCreateHref;
+        } catch (e) {}
+
+        try {
+            const contextCreateHref = readCreateHrefFromContainer(value.context);
+            if (contextCreateHref) return contextCreateHref;
+        } catch (e) {}
+
+        try {
+            const pluginsCreateHref = readCreateHrefFromContainer(value.Plugins);
+            if (pluginsCreateHref) return pluginsCreateHref;
+        } catch (e) {}
+
+        try {
+            const contextPluginsCreateHref = readCreateHrefFromContainer(value.context && value.context.Plugins);
+            if (contextPluginsCreateHref) return contextPluginsCreateHref;
+        } catch (e) {}
+
+        try {
+            const storeContextPluginsCreateHref = readCreateHrefFromContainer(
+                value.context && value.context.store && value.context.store._context && value.context.store._context.Plugins
+            );
+            if (storeContextPluginsCreateHref) return storeContextPluginsCreateHref;
+        } catch (e) {}
+
+        try {
+            const storePluginsCreateHref = readCreateHrefFromContainer(
+                value.store && value.store._context && value.store._context.Plugins
+            );
+            if (storePluginsCreateHref) return storePluginsCreateHref;
+        } catch (e) {}
+
+        try {
+            const elementConfigCreateHref = readCreateHrefFromContainer(value.elementType && value.elementType.config);
+            if (elementConfigCreateHref) return elementConfigCreateHref;
+        } catch (e) {}
+
+        try {
+            const typeConfigCreateHref = readCreateHrefFromContainer(value.type && value.type.config);
+            if (typeConfigCreateHref) return typeConfigCreateHref;
+        } catch (e) {}
+
+        try {
+            const mergedPropsCreateHref = readCreateHrefFromContainer(value.mergedProps);
+            if (mergedPropsCreateHref) return mergedPropsCreateHref;
+        } catch (e) {}
+
+        try {
+            if (value.renderedElement && value.renderedElement.props) {
+                const renderedPropsCreateHref = readCreateHrefFromContainer(value.renderedElement.props);
+                if (renderedPropsCreateHref) return renderedPropsCreateHref;
+            }
+        } catch (e) {}
+
+        try {
+            if (value._currentElement && value._currentElement.props) {
+                const currentElementCreateHref = readCreateHrefFromContainer(value._currentElement.props);
+                if (currentElementCreateHref) return currentElementCreateHref;
+            }
+        } catch (e) {}
+
+        return null;
+    }
+
+    function findCreateHrefInReactElementTree(rootProps, maxDepth) {
+        if (!rootProps || typeof rootProps !== 'object' || maxDepth <= 0) return null;
+
+        const queue = [{
+            props: rootProps,
+            depth: 0
+        }];
+        const visited = new WeakSet();
+        let count = 0;
+
+        while (queue.length > 0 && count < 300) {
+            const item = queue.shift();
+            const props = item.props;
+            count++;
+
+            if (!props || typeof props !== 'object') continue;
+            if (visited.has(props)) continue;
+            visited.add(props);
+
+            const createHref = getCreateHrefFromObject(props);
+            if (createHref) return createHref;
+
+            if (item.depth >= maxDepth) continue;
+
+            const children = props.children;
+            if (!children) continue;
+
+            const childQueue = Array.isArray(children) ? children.slice() : [children];
+            while (childQueue.length > 0) {
+                const child = childQueue.shift();
+                if (!child || typeof child !== 'object') continue;
+
+                if (Array.isArray(child)) {
+                    child.forEach(nested => childQueue.push(nested));
+                    continue;
+                }
+
+                if (child.props && typeof child.props === 'object') {
+                    queue.push({
+                        props: child.props,
+                        depth: item.depth + 1
+                    });
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function findCreateHrefInContextChain(fiber) {
+        if (!fiber || typeof fiber !== 'object') return null;
+
+        const dependencySources = [
+            fiber.dependencies,
+            fiber.dependencies_old,
+            fiber.dependencies_new
+        ];
+
+        for (const dependencies of dependencySources) {
+            if (!dependencies || typeof dependencies !== 'object') continue;
+
+            let ctx = dependencies.firstContext;
+            let count = 0;
+            while (ctx && count < 80) {
+                count++;
+                try {
+                    const createHref = getCreateHrefFromObject(ctx.memoizedValue);
+                    if (createHref) return createHref;
+                } catch (e) {}
+                ctx = ctx.next;
+            }
+        }
+
+        return null;
+    }
+
+    function findCreateHrefInEffectDeps(effect) {
+        let current = effect;
+        let count = 0;
+        const visited = new WeakSet();
+
+        while (current && typeof current === 'object' && count < 80) {
+            count++;
+            if (visited.has(current)) break;
+            visited.add(current);
+
+            const createHref = getCreateHrefFromObject(current);
+            if (createHref) return createHref;
+
+            try {
+                if (Array.isArray(current.deps)) {
+                    for (const dep of current.deps) {
+                        const depCreateHref = findCreateHrefInObject(dep, 4);
+                        if (depCreateHref) return depCreateHref;
+                    }
+                }
+            } catch (e) {}
+
+            current = current.next;
+        }
+
+        return null;
+    }
+
+    function findCreateHrefInHookState(fiber) {
+        if (!fiber || typeof fiber !== 'object') return null;
+
+        const roots = [
+            fiber.memoizedState,
+            fiber.updateQueue && fiber.updateQueue.lastEffect,
+            fiber.updateQueue && fiber.updateQueue.firstEffect,
+            fiber.lastEffect,
+            fiber.firstEffect
+        ];
+
+        const queue = [];
+        roots.forEach(root => {
+            if (root && typeof root === 'object') {
+                queue.push({
+                    value: root,
+                    depth: 0
+                });
+            }
+        });
+
+        const visited = new WeakSet();
+        let count = 0;
+
+        while (queue.length > 0 && count < 200) {
+            const item = queue.shift();
+            const value = item.value;
+            count++;
+
+            if (!value || typeof value !== 'object') continue;
+            if (visited.has(value)) continue;
+            visited.add(value);
+
+            const createHref = getCreateHrefFromObject(value);
+            if (createHref) return createHref;
+
+            const shallowCreateHref = findCreateHrefInObject(value, 2);
+            if (shallowCreateHref) return shallowCreateHref;
+
+            if (item.depth >= 40) continue;
+
+            try {
+                if (value.next && typeof value.next === 'object') {
+                    queue.push({
+                        value: value.next,
+                        depth: item.depth + 1
+                    });
+                }
+                if (value.memoizedState && typeof value.memoizedState === 'object') {
+                    queue.push({
+                        value: value.memoizedState,
+                        depth: item.depth + 1
+                    });
+                }
+                if (Array.isArray(value.deps)) {
+                    value.deps.forEach(dep => {
+                        if (dep && typeof dep === 'object') {
+                            queue.push({
+                                value: dep,
+                                depth: item.depth + 1
+                            });
+                        }
+                    });
+                }
+                if (Array.isArray(value)) {
+                    value.forEach(child => {
+                        if (child && typeof child === 'object') {
+                            queue.push({
+                                value: child,
+                                depth: item.depth + 1
+                            });
+                        }
+                    });
+                }
+            } catch (e) {}
+        }
+
+        return null;
+    }
+
+    function findCreateHrefInFiberTree(startFiber) {
+        if (!startFiber) return null;
+
+        const queue = [startFiber];
+        const visited = new WeakSet();
+        let count = 0;
+
+        while (queue.length > 0 && count < ROUTER_FIBER_SCAN_MAX_NODES) {
+            const fiber = queue.shift();
+            count++;
+
+            if (!fiber || typeof fiber !== 'object') continue;
+            if (visited.has(fiber)) continue;
+            visited.add(fiber);
+
+            const contextCreateHref = findCreateHrefInContextChain(fiber);
+            if (contextCreateHref) return contextCreateHref;
+
+            const effectCreateHref = findCreateHrefInEffectDeps(
+                fiber.updateQueue && fiber.updateQueue.lastEffect || fiber.lastEffect
+            );
+            if (effectCreateHref) return effectCreateHref;
+
+            const hookCreateHref = findCreateHrefInHookState(fiber);
+            if (hookCreateHref) return hookCreateHref;
+
+            const candidates = [
+                fiber,
+                fiber.stateNode,
+                fiber.memoizedProps,
+                fiber.pendingProps
+            ];
+
+            if (fiber._currentElement && fiber._currentElement.props) {
+                candidates.push(fiber._currentElement.props);
+            }
+            if (fiber.stateNode && fiber.stateNode.props) {
+                candidates.push(fiber.stateNode.props);
+            }
+
+            const alt = fiber.alternate;
+            if (alt && alt !== fiber) {
+                const altContextCreateHref = findCreateHrefInContextChain(alt);
+                if (altContextCreateHref) return altContextCreateHref;
+
+                const altEffectCreateHref = findCreateHrefInEffectDeps(
+                    alt.updateQueue && alt.updateQueue.lastEffect || alt.lastEffect
+                );
+                if (altEffectCreateHref) return altEffectCreateHref;
+
+                const altHookCreateHref = findCreateHrefInHookState(alt);
+                if (altHookCreateHref) return altHookCreateHref;
+
+                candidates.push(alt, alt.stateNode, alt.memoizedProps, alt.pendingProps);
+                if (alt._currentElement && alt._currentElement.props) {
+                    candidates.push(alt._currentElement.props);
+                }
+                if (alt.stateNode && alt.stateNode.props) {
+                    candidates.push(alt.stateNode.props);
+                }
+            }
+
+            for (const candidate of candidates) {
+                const directCreateHref = getCreateHrefFromObject(candidate);
+                if (directCreateHref) return directCreateHref;
+
+                const elementTreeCreateHref = findCreateHrefInReactElementTree(candidate, ROUTER_NESTED_SEARCH_DEPTH);
+                if (elementTreeCreateHref) return elementTreeCreateHref;
+
+                const nestedCreateHref = findCreateHrefInObject(candidate, 3);
+                if (nestedCreateHref) return nestedCreateHref;
+            }
+
+            if (fiber.child) queue.push(fiber.child);
+            if (fiber.sibling) queue.push(fiber.sibling);
+            if (fiber.alternate && fiber.alternate !== fiber && fiber.alternate.child) {
+                queue.push(fiber.alternate.child);
+            }
+            getLegacyReactInstanceChildren(fiber).forEach(child => queue.push(child));
+        }
+
+        return null;
+    }
+
     function findCreateHrefInFiber(startFiber) {
+        const fiberTreeCreateHref = findCreateHrefInFiberTree(startFiber);
+        if (fiberTreeCreateHref) return fiberTreeCreateHref;
+
         const createHref = findCreateHrefInObject(startFiber, CREATE_HREF_SEARCH_DEPTH);
         if (createHref) return createHref;
         if (startFiber && startFiber.alternate) {
@@ -1095,7 +2207,8 @@
         GitHubRoutes: 3,
         ContextRoutes: 3,
         LegacyRoutes: 2,
-        Routes: 1
+        Routes: 1,
+        MenuRoutes: 0
     };
 
     function tryGetRouter() {
@@ -1156,6 +2269,14 @@
                     Path: r.path
                 })));
                 console.log('\n🔗 原始 routes：', result.routes);
+            } else if (result.type === 'MenuRoutes') {
+                routes = result.routes || [];
+                mode = detectRouterMode(null, startFiber);
+                console.log('\n[AntiDebug] React Router 璺敱鍒楄〃 [Menu routes fallback]:');
+                console.table(routes.map(r => ({
+                    Name: r.name || '(unnamed)',
+                    Path: r.path
+                })));
             } else {
                 routes = extractJSXRoutes(result.props);
                 console.log('\n📋 React Router 路由列表 [JSX <Routes> 模式]：');
@@ -1167,7 +2288,10 @@
             }
 
             // 按优先级保留最重要的 type/mode/base
-            if (!primaryType || (TYPE_PRIORITY[result.type] || 0) > (TYPE_PRIORITY[primaryType] || 0)) {
+            if (!primaryType ||
+                (TYPE_PRIORITY[result.type] || 0) > (TYPE_PRIORITY[primaryType] || 0) ||
+                ((TYPE_PRIORITY[result.type] || 0) === (TYPE_PRIORITY[primaryType] || 0) && !primaryMode && mode)
+            ) {
                 primaryType = result.type;
                 primaryMode = mode;
                 primaryBase = extractReactRouterBasename(startFiber, result);
@@ -1183,20 +2307,19 @@
             }
         }
 
-        if (found) {
+        if (found && collectedRoutes.length > 0) {
             hasOutputResult = true;
-            if (collectedRoutes.length > 0) {
-                cachedResult = {
-                    routerType: primaryType || 'Routes',
-                    routerMode: primaryMode,
-                    routerBase: primaryBase,
-                    routes: collectedRoutes
-                };
-                sendToExtension(cachedResult);
-            }
+            cachedResult = {
+                routerType: primaryType || 'Routes',
+                routerMode: primaryMode,
+                routerBase: primaryBase,
+                routes: collectedRoutes
+            };
+            sendToExtension(cachedResult);
+            return true;
         }
 
-        return found;
+        return false;
     }
 
     // ===== DOM变化监控（MutationObserver） =====
