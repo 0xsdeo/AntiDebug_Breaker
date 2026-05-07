@@ -33,7 +33,16 @@
     let observer = null;
     let allTimeoutIds = [];
     let hasOutputResult = false;
+    let scanFinalized = false;
+    let firstResultAt = 0;
+    let stableScanCount = 0;
+    let lastResultSignature = '';
+    let scanRound = 0;
+    let nextRootId = 1;
+    const rootObjectIds = new WeakMap();
+    const rootPrimitiveIds = new Map();
     let printedReactInstances = new WeakSet();
+    let printedReactInstanceKeys = new Set();
     let cachedResult = null; // 缓存找到的路由数据，供 REQUEST 时复用
 
     // ===== 站点特定标志 =====
@@ -46,6 +55,29 @@
     const ROUTER_FIBER_SCAN_MAX_NODES = 15000;
     const ROUTER_NESTED_SEARCH_DEPTH = 10;
     const CREATE_HREF_SEARCH_DEPTH = ROUTER_NESTED_SEARCH_DEPTH;
+    const RESULT_COMPLETION_WINDOW_MS = 3500;
+    const STABLE_SCAN_LIMIT = 3;
+    const HOST_FIBER_FALLBACK_DELAY_MS = 900;
+    const VERBOSE_REACT_ROUTER_LOGS = Boolean(window.__ANTIDEBUG_REACT_ROUTER_DEBUG__);
+
+    function debugLog() {
+        if (!VERBOSE_REACT_ROUTER_LOGS) return;
+        console.log.apply(console, arguments);
+    }
+
+    function debugWarn() {
+        if (!VERBOSE_REACT_ROUTER_LOGS) return;
+        console.warn.apply(console, arguments);
+    }
+
+    function debugTable(rows) {
+        if (!VERBOSE_REACT_ROUTER_LOGS) return;
+        if (typeof console.table === 'function') {
+            console.table(rows);
+        } else {
+            console.log(rows);
+        }
+    }
 
     // ===== 发送数据到插件 =====
     function sendToExtension(data) {
@@ -85,8 +117,14 @@
             observer = null;
         }
         hasOutputResult = false;
+        scanFinalized = false;
+        firstResultAt = 0;
+        stableScanCount = 0;
+        lastResultSignature = '';
+        scanRound = 0;
         cachedResult = null;
         printedReactInstances = new WeakSet();
+        printedReactInstanceKeys = new Set();
         startDOMObserver();
         startPollingRetry();
     }
@@ -163,7 +201,7 @@
         }
 
         if (results.length > 0) {
-            results.forEach(r => console.log(`[AntiDebug] 检测到React挂载节点：${r.prop} on`, r.node));
+            results.forEach(r => debugLog(`[AntiDebug] 检测到React挂载节点：${r.prop} on`, r.node));
         }
         return results;
     }
@@ -186,7 +224,7 @@
                 //   HostRoot Fiber.child = 第一个组件 Fiber
                 const fiberA = containerInfo.value ?._internalRoot ?.current ?.child;
                 if (fiberA) {
-                    console.log('[AntiDebug] _reactRootContainer（方式A _internalRoot）startFiber:', fiberA);
+                    debugLog('[AntiDebug] _reactRootContainer（方式A _internalRoot）startFiber:', fiberA);
                     return fiberA;
                 }
 
@@ -196,11 +234,11 @@
                 //   HostRoot Fiber.child = 第一个组件 Fiber
                 const fiberB = containerInfo.value ?.current ?.child;
                 if (fiberB) {
-                    console.log('[AntiDebug] _reactRootContainer（方式B 直接current）startFiber:', fiberB);
+                    debugLog('[AntiDebug] _reactRootContainer（方式B 直接current）startFiber:', fiberB);
                     return fiberB;
                 }
 
-                console.warn('[AntiDebug] _reactRootContainer 结构未识别:', containerInfo.value);
+                debugWarn('[AntiDebug] _reactRootContainer 结构未识别:', containerInfo.value);
                 return null;
             }
 
@@ -215,15 +253,15 @@
             const fiberRoot = containerInfo.value ?.stateNode;
             const fiberA = fiberRoot ?.current ?.child;
             if (fiberA) {
-                console.log('[AntiDebug] React 18 startFiber（via stateNode.current）:', fiberA);
+                debugLog('[AntiDebug] React 18 startFiber（via stateNode.current）:', fiberA);
                 return fiberA;
             }
             // 兜底：直接取 .child（极少数情况下 alternate 上也有数据）
             const fiberB = containerInfo.value ?.child || null;
-            console.log('[AntiDebug] React 18 startFiber（via direct child）:', fiberB);
+            debugLog('[AntiDebug] React 18 startFiber（via direct child）:', fiberB);
             return fiberB;
         } catch (e) {
-            console.warn('[AntiDebug] getStartFiber 出错:', e);
+            debugWarn('[AntiDebug] getStartFiber 出错:', e);
             return null;
         }
     }
@@ -279,7 +317,7 @@
         }
 
         if (results.length > 0) {
-            console.log(`[AntiDebug] 检测到 ${results.length} 个 React Host Fiber 节点`);
+            debugLog(`[AntiDebug] 检测到 ${results.length} 个 React Host Fiber 节点`);
         }
         return results;
     }
@@ -356,10 +394,81 @@
         return children;
     }
 
+    function getDomPath(node) {
+        if (!node || node.nodeType !== 1) return '';
+
+        try {
+            if (node.id) {
+                return `document.getElementById(${JSON.stringify(String(node.id))})`;
+            }
+        } catch (e) {}
+
+        const parts = [];
+        let current = node;
+        while (current && current.nodeType === 1 && current !== document.documentElement) {
+            let tag = current.tagName ? current.tagName.toLowerCase() : 'element';
+            let index = 1;
+            let sibling = current.previousElementSibling;
+            while (sibling) {
+                if (sibling.tagName === current.tagName) index++;
+                sibling = sibling.previousElementSibling;
+            }
+            parts.unshift(`${tag}:nth-of-type(${index})`);
+            current = current.parentElement;
+        }
+
+        if (!parts.length) return 'document.documentElement';
+        return `document.querySelector(${JSON.stringify(parts.join(' > '))})`;
+    }
+
+    function getReactRootIdentity(fiber) {
+        if (!fiber || typeof fiber !== 'object') return null;
+
+        try {
+            if (fiber.stateNode && fiber.stateNode.current) {
+                return fiber.stateNode;
+            }
+
+            if (fiber.tag === 3) {
+                return fiber.stateNode || fiber;
+            }
+
+            let current = fiber;
+            let depth = 0;
+            while (current && current.return && depth < 10000) {
+                current = current.return;
+                if (current.tag === 3) {
+                    return current.stateNode || current;
+                }
+                depth++;
+            }
+
+            current = fiber;
+            depth = 0;
+            while (current && current._hostParent && depth < 10000) {
+                current = current._hostParent;
+                depth++;
+            }
+            if (current && current !== fiber) return current;
+
+        } catch (e) {}
+
+        return null;
+    }
+
     function printReactInstances(records) {
+        if (!VERBOSE_REACT_ROUTER_LOGS) return;
         const newRecords = records.filter(record => {
-            if (!record.startFiber || printedReactInstances.has(record.startFiber)) return false;
-            printedReactInstances.add(record.startFiber);
+            if (!record.startFiber) return false;
+            const identity = record.rootIdentity || getReactRootIdentity(record.startFiber);
+            if (identity && typeof identity === 'object') {
+                if (printedReactInstances.has(identity)) return false;
+                printedReactInstances.add(identity);
+            } else {
+                const key = `${record.containerPath || ''}:${record.source || ''}`;
+                if (printedReactInstanceKeys.has(key)) return false;
+                printedReactInstanceKeys.add(key);
+            }
             return true;
         });
         if (newRecords.length === 0) return;
@@ -387,19 +496,23 @@
         }
     }
 
-    function getReactStartFibers() {
+    function getReactStartFibers(options) {
+        options = options || {};
+        const includeHostFibers = options.includeHostFibers !== false;
         const startFibers = [];
         const records = [];
         const seen = new WeakSet();
 
-        const addStartFiber = (startFiber, source, rawFiber) => {
+        const addStartFiber = (startFiber, source, rawFiber, containerPath) => {
             if (!startFiber || typeof startFiber !== 'object' || seen.has(startFiber)) return;
             seen.add(startFiber);
             startFibers.push(startFiber);
             records.push({
                 source,
+                containerPath: containerPath || '',
                 rawFiber,
-                startFiber
+                startFiber,
+                rootIdentity: getReactRootIdentity(startFiber)
             });
         };
 
@@ -429,27 +542,32 @@
 
         const containers = findReactContainers();
         for (const container of containers) {
-            addStartFiber(getStartFiber(container), container.prop, container.value);
+            const containerPath = getDomPath(container.node);
+            addStartFiber(getStartFiber(container), container.prop, container.value, containerPath);
             getContainerRootFibers(container).forEach(rootFiber => {
-                addStartFiber(rootFiber, `${container.prop}.root`, container.value);
+                addStartFiber(rootFiber, `${container.prop}.root`, container.value, containerPath);
             });
         }
 
-        const hostFibers = findReactHostFibers();
-        for (const item of hostFibers) {
-            addStartFiber(getStartFiberFromHostFiber(item.fiber), item.prop, item.fiber);
-            if (hasLikelyRouteDataNearFiber(item.fiber)) {
-                addStartFiber(item.fiber, `${item.prop}.local`, item.fiber);
-            }
-            if (item.fiber && item.fiber.alternate) {
-                addStartFiber(getStartFiberFromHostFiber(item.fiber.alternate), `${item.prop}.alternate`, item.fiber.alternate);
-                if (hasLikelyRouteDataNearFiber(item.fiber.alternate)) {
-                    addStartFiber(item.fiber.alternate, `${item.prop}.alternate.local`, item.fiber.alternate);
+        if (includeHostFibers) {
+            const hostFibers = findReactHostFibers();
+            for (const item of hostFibers) {
+                const hostPath = getDomPath(item.node);
+                addStartFiber(getStartFiberFromHostFiber(item.fiber), item.prop, item.fiber, hostPath);
+                if (hasLikelyRouteDataNearFiber(item.fiber)) {
+                    addStartFiber(item.fiber, `${item.prop}.local`, item.fiber, hostPath);
+                }
+                if (item.fiber && item.fiber.alternate) {
+                    addStartFiber(getStartFiberFromHostFiber(item.fiber.alternate), `${item.prop}.alternate`, item.fiber.alternate, hostPath);
+                    if (hasLikelyRouteDataNearFiber(item.fiber.alternate)) {
+                        addStartFiber(item.fiber.alternate, `${item.prop}.alternate.local`, item.fiber.alternate, hostPath);
+                    }
                 }
             }
         }
 
         printReactInstances(records);
+        startFibers._records = records;
         return startFibers;
     }
 
@@ -1409,9 +1527,9 @@
         }
 
         if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
-            console.warn(`[AntiDebug] Fiber树遍历达到上限（${ROUTER_FIBER_SCAN_MAX_NODES}节点），可能未完整扫描`);
+            debugWarn(`[AntiDebug] Fiber树遍历达到上限（${ROUTER_FIBER_SCAN_MAX_NODES}节点），可能未完整扫描`);
         } else if (!jsxRoutesCandidate) {
-            console.log(`[AntiDebug] Fiber树遍历完毕，共访问 ${count} 个节点，未找到Router`);
+            debugLog(`[AntiDebug] Fiber树遍历完毕，共访问 ${count} 个节点，未找到Router`);
         }
 
         // RouterProvider / LegacyRoutes 未找到，用 JSX Routes 候选兜底（可能为误判）
@@ -1529,9 +1647,9 @@
         }
 
         if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
-            console.warn(`[AntiDebug] Fiber tree scan reached ${ROUTER_FIBER_SCAN_MAX_NODES} nodes; result may be incomplete`);
+            debugWarn(`[AntiDebug] Fiber tree scan reached ${ROUTER_FIBER_SCAN_MAX_NODES} nodes; result may be incomplete`);
         } else if (!jsxRoutesCandidate && !menuRoutesCandidate) {
-            console.log(`[AntiDebug] Fiber tree scan finished, visited ${count} nodes, no Router found`);
+            debugLog(`[AntiDebug] Fiber tree scan finished, visited ${count} nodes, no Router found`);
         }
 
         return jsxRoutesCandidate || menuRoutesCandidate || null;
@@ -2211,20 +2329,95 @@
         MenuRoutes: 0
     };
 
-    function tryGetRouter() {
-        if (hasOutputResult) return true;
+    function getRecordRootKey(record) {
+        const identity = record.rootIdentity || getReactRootIdentity(record.startFiber);
+        return identity || `fallback:${record.containerPath || ''}:${record.source || ''}`;
+    }
 
-        const startFibers = getReactStartFibers();
+    function getRootId(rootKey) {
+        if (rootKey && typeof rootKey === 'object') {
+            if (!rootObjectIds.has(rootKey)) {
+                rootObjectIds.set(rootKey, `react-root-${nextRootId++}`);
+            }
+            return rootObjectIds.get(rootKey);
+        }
+
+        const primitiveKey = String(rootKey || `fallback-${nextRootId}`);
+        if (!rootPrimitiveIds.has(primitiveKey)) {
+            rootPrimitiveIds.set(primitiveKey, `react-root-${nextRootId++}`);
+        }
+        return rootPrimitiveIds.get(primitiveKey);
+    }
+
+    function getInstanceScore(candidate) {
+        return ((TYPE_PRIORITY[candidate.routerType] || 0) * 100000) + (candidate.routes ? candidate.routes.length : 0);
+    }
+
+    function getRouteKey(route) {
+        return `${route && route.name || ''}::${route && route.path || ''}`;
+    }
+
+    function getResultSignature(result) {
+        if (!result || !Array.isArray(result.instances)) return '';
+        const instanceParts = result.instances.map(instance => {
+            const routeKeys = (instance.routes || []).map(getRouteKey).sort().join('|');
+            return `${instance.rootId || ''}:${instance.routerType || ''}:${instance.routerMode || ''}:${instance.routerBase || ''}:${routeKeys}`;
+        }).sort();
+        return instanceParts.join('||');
+    }
+
+    function shouldUseHostFiberFallback() {
+        if (!firstResultAt) return scanRound > 1;
+        return Date.now() - firstResultAt >= HOST_FIBER_FALLBACK_DELAY_MS;
+    }
+
+    function isScanStableEnough() {
+        if (!firstResultAt) return false;
+        return stableScanCount >= STABLE_SCAN_LIMIT ||
+            Date.now() - firstResultAt >= RESULT_COMPLETION_WINDOW_MS;
+    }
+
+    function tryGetRouter() {
+        if (scanFinalized) return true;
+
+        scanRound++;
+        const startFibers = getReactStartFibers({
+            includeHostFibers: shouldUseHostFiberFallback()
+        });
         if (startFibers.length === 0) return false;
+        const startRecords = Array.isArray(startFibers._records) && startFibers._records.length > 0 ?
+            startFibers._records :
+            startFibers.map((startFiber, index) => ({
+                source: `startFiber#${index + 1}`,
+                containerPath: '',
+                rawFiber: startFiber,
+                startFiber
+            }));
 
         const collectedRoutes = []; // 汇总所有容器的路由
         const seenKeys = new Set(); // 去重用：name::path
+        const recordsByRoot = new Map();
+        for (const record of startRecords) {
+            if (!record || !record.startFiber) continue;
+            const rootKey = getRecordRootKey(record);
+            const existing = recordsByRoot.get(rootKey);
+            const source = record.source || '';
+            const existingSource = existing && existing.source || '';
+            const preferRecord = !existing ||
+                (!source.includes('.root') && existingSource.includes('.root')) ||
+                (!source.includes('.local') && existingSource.includes('.local'));
+            if (preferRecord) recordsByRoot.set(rootKey, record);
+        }
+        const recordsToScan = Array.from(recordsByRoot.values());
+
+        const instanceByRoot = new Map();
         let primaryType = null;
         let primaryMode = null;
         let primaryBase = '';
         let found = false;
 
-        for (const startFiber of startFibers) {
+        for (const record of recordsToScan) {
+            const startFiber = record.startFiber;
             if (!startFiber) continue;
 
             const result = findRouterInFiber(startFiber);
@@ -2238,53 +2431,82 @@
             if (result.type === 'RouterProvider') {
                 mode = detectRouterMode(result.router, startFiber);
                 routes = extractRouterProviderRoutes(result.router.routes);
-                console.log(`\n📋 React Router 路由列表 [RouterProvider - ${mode} 模式]：`);
-                console.table(routes.map(r => ({
+                debugLog(`\n📋 React Router 路由列表 [RouterProvider - ${mode} 模式]：`);
+                debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
                 })));
-                console.log('\n🔗 Router 实例：', result.router);
+                debugLog('\n🔗 Router 实例：', result.router);
             } else if (result.type === 'GitHubRoutes') {
                 routes = extractGitHubRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                console.log('\n📋 React Router 路由列表 [GitHub 自研路由]：');
-                console.table(routes.map(r => ({
+                debugLog('\n📋 React Router 路由列表 [GitHub 自研路由]：');
+                debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
                 })));
             } else if (result.type === 'ContextRoutes') {
                 routes = extractRouterProviderRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                console.log('\n[AntiDebug] React Router 路由列表 [Context routes 模式]:');
-                console.table(routes.map(r => ({
+                debugLog('\n[AntiDebug] React Router 路由列表 [Context routes 模式]:');
+                debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
                 })));
             } else if (result.type === 'LegacyRoutes') {
                 routes = extractLegacyRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                console.log('\n📋 React Router 路由列表 [v3/v4 Legacy 模式]：');
-                console.table(routes.map(r => ({
+                debugLog('\n📋 React Router 路由列表 [v3/v4 Legacy 模式]：');
+                debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
                 })));
-                console.log('\n🔗 原始 routes：', result.routes);
+                debugLog('\n🔗 原始 routes：', result.routes);
             } else if (result.type === 'MenuRoutes') {
                 routes = result.routes || [];
                 mode = detectRouterMode(null, startFiber);
-                console.log('\n[AntiDebug] React Router 璺敱鍒楄〃 [Menu routes fallback]:');
-                console.table(routes.map(r => ({
+                debugLog('\n[AntiDebug] React Router 璺敱鍒楄〃 [Menu routes fallback]:');
+                debugTable(routes.map(r => ({
                     Name: r.name || '(unnamed)',
                     Path: r.path
                 })));
             } else {
                 routes = extractJSXRoutes(result.props);
-                console.log('\n📋 React Router 路由列表 [JSX <Routes> 模式]：');
-                console.table(routes.map(r => ({
+                debugLog('\n📋 React Router 路由列表 [JSX <Routes> 模式]：');
+                debugTable(routes.map(r => ({
                     Name: r.name || '(unnamed)',
                     Path: r.path
                 })));
                 mode = detectRouterMode(null, startFiber);
+            }
+
+            if (routes.length === 0) continue;
+
+            const instanceBase = extractReactRouterBasename(startFiber, result);
+            const instanceSeenKeys = new Set();
+            const instanceRoutes = [];
+            for (const route of routes) {
+                const key = `${route.name || ''}::${route.path}`;
+                if (!instanceSeenKeys.has(key)) {
+                    instanceSeenKeys.add(key);
+                    instanceRoutes.push(route);
+                }
+            }
+
+            const rootKey = getRecordRootKey(record);
+            const instanceCandidate = {
+                rootId: getRootId(rootKey),
+                source: record.source || '',
+                containerPath: record.containerPath || '',
+                routerType: result.type || 'Routes',
+                routerMode: mode,
+                routerBase: instanceBase,
+                routes: instanceRoutes
+            };
+
+            const existing = instanceByRoot.get(rootKey);
+            if (!existing || getInstanceScore(instanceCandidate) > getInstanceScore(existing)) {
+                instanceByRoot.set(rootKey, instanceCandidate);
             }
 
             // 按优先级保留最重要的 type/mode/base
@@ -2294,7 +2516,7 @@
             ) {
                 primaryType = result.type;
                 primaryMode = mode;
-                primaryBase = extractReactRouterBasename(startFiber, result);
+                primaryBase = instanceBase;
             }
 
             // 按 name::path 去重后汇入总列表
@@ -2307,16 +2529,37 @@
             }
         }
 
-        if (found && collectedRoutes.length > 0) {
+        const instances = Array.from(instanceByRoot.values());
+
+        if (found && collectedRoutes.length > 0 && instances.length > 0) {
             hasOutputResult = true;
-            cachedResult = {
+            const nextResult = {
                 routerType: primaryType || 'Routes',
                 routerMode: primaryMode,
                 routerBase: primaryBase,
-                routes: collectedRoutes
+                routes: collectedRoutes,
+                instances
             };
-            sendToExtension(cachedResult);
-            return true;
+            const nextSignature = getResultSignature(nextResult);
+
+            if (!firstResultAt) firstResultAt = Date.now();
+
+            if (nextSignature !== lastResultSignature) {
+                cachedResult = nextResult;
+                lastResultSignature = nextSignature;
+                stableScanCount = 0;
+                console.log(`[AntiDebug] React Router scan updated: ${instances.length} instance(s), ${collectedRoutes.length} route(s)`);
+                sendToExtension(cachedResult);
+            } else {
+                stableScanCount++;
+            }
+
+            if (isScanStableEnough()) {
+                scanFinalized = true;
+                return true;
+            }
+
+            return false;
         }
 
         return false;
@@ -2332,7 +2575,7 @@
         }
 
         observer = new MutationObserver(() => {
-            if (hasOutputResult) return;
+            if (scanFinalized) return;
             if (tryGetRouter()) {
                 cleanupResources();
             }
@@ -2347,6 +2590,7 @@
     // ===== 清理资源 =====
     function cleanupResources() {
         hasOutputResult = true;
+        scanFinalized = true;
         allTimeoutIds.forEach(id => clearTimeout(id));
         allTimeoutIds = [];
         if (observer) {
@@ -2363,7 +2607,7 @@
         let remainingTries = 6;
 
         function poll() {
-            if (hasOutputResult) return;
+            if (scanFinalized) return;
 
             if (tryGetRouter()) {
                 cleanupResources();
@@ -2375,6 +2619,8 @@
                 const id = setTimeout(poll, delay);
                 allTimeoutIds.push(id);
                 delay *= 2;
+            } else if (hasOutputResult) {
+                cleanupResources();
             } else {
                 console.log('❌ 未找到React Router实例（已重试多次，请确认站点是否使用React Router）');
                 cleanupResources();

@@ -150,6 +150,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let isFirstVueDataDisplay = true; // 🆕 标记是否是首次显示Vue路由数据
     let currentVueSubTab = 'vue'; // Vue/React子板块当前激活的子Tab
     let cachedReactData = null; // 缓存 React 路由数据
+    let cachedReactDataList = []; // Cache React router instances for multi-root pages
+    let currentReactInstanceIndex = 0; // Currently selected React instance
+    let isFirstReactDataDisplay = true; // Track first React route list render for last-opened restore
+    let hasRestoredReactInstanceSelection = false; // Avoid repeatedly switching React instance from storage
+    let hasRestoredReactLastOpenedRoute = false; // Avoid repeated React route highlight after success
+    let reactLastOpenedRouteRestoreTimer = null; // Debounce restore while route list is re-rendering
+    let reactLastOpenedRouteRestoreDeadline = Date.now() + 3000; // Route data may re-render shortly after popup opens
 
     // 🆕 全局模式状态管理
     let isGlobalMode = false; // 当前是否为全局模式
@@ -347,10 +354,10 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // React 路由数据更新
         if (message.type === 'REACT_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
-            cachedReactData = message.data;
+            setCachedReactRouterData(message.data);
             // 只有当前在 React 子 Tab 时才刷新显示
             if (currentTab === 'vue' && currentVueSubTab === 'react') {
-                displayReactRouterData(cachedReactData);
+                displayReactMultipleInstances();
             }
         }
 
@@ -484,9 +491,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const reactStorageKey = `${hostname}_react_data`;
                                 chrome.storage.local.get([reactStorageKey], (storageResult) => {
                                     if (storageResult[reactStorageKey]) {
-                                        cachedReactData = storageResult[reactStorageKey];
+                                        setCachedReactRouterData(storageResult[reactStorageKey]);
                                         if (currentTab === 'vue' && currentVueSubTab === 'react') {
-                                            displayReactRouterData(cachedReactData);
+                                            displayReactMultipleInstances();
                                         }
                                     }
                                     requestReactRouterData();
@@ -541,9 +548,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const reactStorageKey = `${hostname}_react_data`;
                                 chrome.storage.local.get([reactStorageKey], (storageResult) => {
                                     if (storageResult[reactStorageKey]) {
-                                        cachedReactData = storageResult[reactStorageKey];
+                                        setCachedReactRouterData(storageResult[reactStorageKey]);
                                         if (currentTab === 'vue' && currentVueSubTab === 'react') {
-                                            displayReactRouterData(cachedReactData);
+                                            displayReactMultipleInstances();
                                         }
                                     }
                                     requestReactRouterData();
@@ -745,15 +752,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 优先用内存缓存，无缓存则从 storage 读取（background 已存储时可直接展示）
             if (cachedReactData) {
-                displayReactRouterData(cachedReactData);
+                displayReactMultipleInstances();
                 if (hasReactScript) requestReactRouterData();
             } else {
                 const reactStorageKey = `${hostname}_react_data`;
                 chrome.storage.local.get([reactStorageKey], (storageResult) => {
                     if (storageResult[reactStorageKey]) {
-                        cachedReactData = storageResult[reactStorageKey];
+                        setCachedReactRouterData(storageResult[reactStorageKey]);
                     }
-                    displayReactRouterData(cachedReactData);
+                    displayReactMultipleInstances();
                     if (hasReactScript) requestReactRouterData();
                 });
             }
@@ -1704,6 +1711,250 @@ document.addEventListener('DOMContentLoaded', () => {
         displayVueRouterData(cachedVueDataList[currentInstanceIndex]);
     }
 
+    function getReactInstanceKey(instance, index) {
+        if (!instance) return `react-${index}`;
+        return instance.rootId || instance.containerPath || instance.source || instance.instanceId || `react-${index}`;
+    }
+
+    function getReactInstanceLabel(instance, index) {
+        const rawLabel = getReactInstanceKey(instance, index);
+        return String(rawLabel)
+            .replace(/^document\./, '')
+            .replace(/^getElementById/, 'id')
+            .replace(/^querySelector/, 'selector');
+    }
+
+    function getReactLastOpenedRouteStorageKey() {
+        return `${hostname}_react_last_opened_route`;
+    }
+
+    function normalizeReactRoutePath(path) {
+        if (!path || typeof path !== 'string') return '';
+        let normalized = path.trim();
+        if (!normalized) return '';
+        const queryIndex = normalized.search(/[?#]/);
+        if (queryIndex >= 0) normalized = normalized.slice(0, queryIndex);
+        if (!normalized.startsWith('/')) normalized = '/' + normalized;
+        if (normalized.length > 1 && normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+        return normalized;
+    }
+
+    function getReactRoutePathFromUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        try {
+            const parsed = new URL(url);
+            if (parsed.hash) {
+                const hashPath = parsed.hash.replace(/^#/, '');
+                if (hashPath && hashPath !== '/') return normalizeReactRoutePath(hashPath);
+            }
+            return normalizeReactRoutePath(parsed.pathname);
+        } catch (e) {
+            const hashIndex = url.indexOf('#');
+            if (hashIndex >= 0) {
+                return normalizeReactRoutePath(url.slice(hashIndex + 1));
+            }
+            return normalizeReactRoutePath(url);
+        }
+    }
+
+    function normalizeReactLastOpenedRoute(value) {
+        if (!value) return null;
+        if (typeof value === 'string') {
+            return {
+                url: value,
+                routePath: getReactRoutePathFromUrl(value)
+            };
+        }
+        if (typeof value === 'object' && typeof value.url === 'string') {
+            return {
+                ...value,
+                routePath: normalizeReactRoutePath(value.routePath) || getReactRoutePathFromUrl(value.url)
+            };
+        }
+        return null;
+    }
+
+    function findReactRouteItemByLastOpened(container, lastOpenedRoute) {
+        if (!container || !lastOpenedRoute) return null;
+
+        return Array.from(container.querySelectorAll('.route-item')).find(item => {
+            const openBtn = item.querySelector('.open-btn');
+            if (!openBtn) return false;
+            if (openBtn.dataset.url === lastOpenedRoute.url) return true;
+            return Boolean(lastOpenedRoute.routePath) &&
+                normalizeReactRoutePath(openBtn.dataset.routePath || '') === lastOpenedRoute.routePath;
+        }) || null;
+    }
+
+    function scrollReactRouteItemIntoView(routeItem) {
+        if (!routeItem) return;
+
+        const scrollContainer = routeItem.closest('.vue-content') || routeItem.closest('.react-sub-content');
+        if (scrollContainer && typeof scrollContainer.scrollTop === 'number') {
+            const itemRect = routeItem.getBoundingClientRect();
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const targetTop = scrollContainer.scrollTop + itemRect.top - containerRect.top -
+                Math.max(0, (containerRect.height - itemRect.height) / 2);
+            scrollContainer.scrollTop = Math.max(0, targetTop);
+        }
+
+        routeItem.scrollIntoView({
+            behavior: 'auto',
+            block: 'center'
+        });
+    }
+
+    function scheduleReactLastOpenedRouteRestore(reactRouterInfo, routesListContainer, routeSearchInput) {
+        if (hasRestoredReactLastOpenedRoute && Date.now() > reactLastOpenedRouteRestoreDeadline) return;
+        if (!isFirstReactDataDisplay && !hasRestoredReactLastOpenedRoute) return;
+        if (!reactRouterInfo || !reactRouterInfo.routes || reactRouterInfo.routes.length === 0) return;
+        if (!routesListContainer) return;
+        if (routeSearchInput && routeSearchInput.value.trim() !== '') return;
+
+        const storageKey = getReactLastOpenedRouteStorageKey();
+        chrome.storage.local.get([storageKey], (result) => {
+            const lastOpenedRoute = normalizeReactLastOpenedRoute(result[storageKey]);
+            if (!lastOpenedRoute || !lastOpenedRoute.url) {
+                isFirstReactDataDisplay = false;
+                return;
+            }
+
+            const hasStoredRootInCurrentData = lastOpenedRoute.rootId && cachedReactDataList.some(instance => {
+                return instance && instance.rootId === lastOpenedRoute.rootId;
+            });
+            if (hasStoredRootInCurrentData && reactRouterInfo.rootId && lastOpenedRoute.rootId !== reactRouterInfo.rootId) {
+                return;
+            }
+
+            if (reactLastOpenedRouteRestoreTimer) {
+                clearTimeout(reactLastOpenedRouteRestoreTimer);
+                reactLastOpenedRouteRestoreTimer = null;
+            }
+
+            reactLastOpenedRouteRestoreTimer = setTimeout(() => {
+                reactLastOpenedRouteRestoreTimer = null;
+                const targetRouteItem = findReactRouteItemByLastOpened(routesListContainer, lastOpenedRoute);
+                if (!targetRouteItem) return;
+
+                scrollReactRouteItemIntoView(targetRouteItem);
+                targetRouteItem.classList.add('highlight-last-opened');
+                setTimeout(() => {
+                    targetRouteItem.classList.remove('highlight-last-opened');
+                }, 2000);
+
+                hasRestoredReactLastOpenedRoute = true;
+                isFirstReactDataDisplay = false;
+            }, 160);
+        });
+    }
+
+    function setCachedReactRouterData(data) {
+        const previous = cachedReactDataList[currentReactInstanceIndex];
+        const previousKey = previous ? getReactInstanceKey(previous, currentReactInstanceIndex) : null;
+
+        cachedReactData = data || null;
+        if (!data) {
+            cachedReactDataList = [];
+            currentReactInstanceIndex = 0;
+            return;
+        }
+
+        const rawInstances = Array.isArray(data.instances) && data.instances.length > 0
+            ? data.instances.filter(Boolean)
+            : [data];
+        const instances = [];
+        const seenRootIds = new Set();
+        rawInstances.forEach(instance => {
+            const rootId = instance && instance.rootId;
+            if (rootId) {
+                if (seenRootIds.has(rootId)) return;
+                seenRootIds.add(rootId);
+            }
+            instances.push(instance);
+        });
+
+        cachedReactDataList = instances;
+        if (previousKey) {
+            const matchedIndex = cachedReactDataList.findIndex((instance, index) => {
+                return getReactInstanceKey(instance, index) === previousKey;
+            });
+            currentReactInstanceIndex = matchedIndex >= 0 ? matchedIndex : 0;
+        } else if (currentReactInstanceIndex >= cachedReactDataList.length) {
+            currentReactInstanceIndex = 0;
+        }
+    }
+
+    function displayReactMultipleInstances() {
+        const instanceTabs = document.querySelector('.react-instance-tabs');
+        const tabsHeader = document.querySelector('.react-instance-tabs-header');
+
+        if (!cachedReactDataList || cachedReactDataList.length === 0) {
+            if (instanceTabs) instanceTabs.style.display = 'none';
+            displayReactRouterData(cachedReactData);
+            return;
+        }
+
+        if (!tabsHeader || !instanceTabs || cachedReactDataList.length === 1) {
+            if (instanceTabs) instanceTabs.style.display = 'none';
+            currentReactInstanceIndex = 0;
+            displayReactRouterData(cachedReactDataList[0]);
+            return;
+        }
+
+        if (currentReactInstanceIndex >= cachedReactDataList.length) {
+            currentReactInstanceIndex = 0;
+        }
+
+        if (!hasRestoredReactInstanceSelection) {
+            hasRestoredReactInstanceSelection = true;
+            const storageKey = getReactLastOpenedRouteStorageKey();
+            chrome.storage.local.get([storageKey], (result) => {
+                const lastOpenedRoute = normalizeReactLastOpenedRoute(result[storageKey]);
+                if (!lastOpenedRoute || !lastOpenedRoute.rootId) return;
+
+                const matchedIndex = cachedReactDataList.findIndex(instance => {
+                    return instance && instance.rootId === lastOpenedRoute.rootId;
+                });
+
+                if (matchedIndex >= 0 && matchedIndex !== currentReactInstanceIndex) {
+                    currentReactInstanceIndex = matchedIndex;
+                    displayReactMultipleInstances();
+                }
+            });
+        }
+
+        instanceTabs.style.display = 'block';
+        tabsHeader.innerHTML = '';
+
+        cachedReactDataList.forEach((instance, index) => {
+            const tabBtn = document.createElement('button');
+            tabBtn.className = `instance-tab-btn ${index === currentReactInstanceIndex ? 'active' : ''}`;
+            tabBtn.type = 'button';
+
+            const routeCount = Array.isArray(instance.routes) ? instance.routes.length : 0;
+            const modeLabel = instance.routerMode || instance.routerType || 'React';
+            const title = getReactInstanceLabel(instance, index);
+            tabBtn.title = `${title} | ${routeCount} routes`;
+            tabBtn.innerHTML = `
+                <div class="instance-tab-title">实例 ${index + 1}</div>
+                <div class="instance-tab-subtitle">${modeLabel} · ${routeCount} 路由</div>
+            `;
+
+            tabBtn.onclick = () => {
+                tabsHeader.querySelectorAll('.instance-tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                tabBtn.classList.add('active');
+                currentReactInstanceIndex = index;
+                displayReactRouterData(cachedReactDataList[index]);
+            };
+
+            tabsHeader.appendChild(tabBtn);
+        });
+
+        displayReactRouterData(cachedReactDataList[currentReactInstanceIndex]);
+    }
+
     // 显示 React Router 数据
     function displayReactRouterData(reactRouterInfo) {
         const reactRoutesInfoBar = document.querySelector('.react-routes-info-bar');
@@ -1804,6 +2055,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rawPath = route.path || '/';
                 const normalizedPath = rawPath.startsWith('/') ? rawPath : '/' + rawPath;
                 const fullUrl = buildFullUrl(normalizedPath);
+                const routePath = normalizeReactRoutePath(normalizedPath);
                 if (seenUrls.has(fullUrl)) return;
                 seenUrls.add(fullUrl);
 
@@ -1813,7 +2065,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="route-url" title="${fullUrl}">${fullUrl}</div>
                     <div class="route-actions">
                         <button class="route-btn copy-btn" data-url="${fullUrl}">复制</button>
-                        <button class="route-btn open-btn" data-url="${fullUrl}">打开</button>
+                        <button class="route-btn open-btn" data-url="${fullUrl}" data-route-path="${routePath}">打开</button>
                     </div>
                 `;
 
@@ -1826,11 +2078,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 routeItem.querySelector('.open-btn').addEventListener('click', () => {
-                    chrome.tabs.update(currentTab_obj.id, { url: fullUrl });
+                    const openRoute = () => {
+                        chrome.tabs.update(currentTab_obj.id, { url: fullUrl });
+                    };
+                    if (reactRouterInfo && reactRouterInfo.routes && reactRouterInfo.routes.length > 0) {
+                        chrome.storage.local.set({
+                            [getReactLastOpenedRouteStorageKey()]: {
+                                url: fullUrl,
+                                routePath,
+                                rootId: reactRouterInfo.rootId || '',
+                                containerPath: reactRouterInfo.containerPath || '',
+                                timestamp: Date.now()
+                            }
+                        }, openRoute);
+                    } else {
+                        openRoute();
+                    }
                 });
 
                 reactRoutesListContainer.appendChild(routeItem);
             });
+
+            scheduleReactLastOpenedRouteRestore(reactRouterInfo, reactRoutesListContainer, reactRouteSearchInput);
         }
 
         // 渲染并更新信息头计数（去重后的真实数量）
