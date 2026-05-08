@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let hasRestoredReactLastOpenedRoute = false; // Avoid repeated React route highlight after success
     let reactLastOpenedRouteRestoreTimer = null; // Debounce restore while route list is re-rendering
     let reactLastOpenedRouteRestoreDeadline = Date.now() + 3000; // Route data may re-render shortly after popup opens
+    let freezeReactRouteDisplayAfterNavigation = false; // Keep current React route list stable after opening a route
 
     // 🆕 全局模式状态管理
     let isGlobalMode = false; // 当前是否为全局模式
@@ -354,6 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // React 路由数据更新
         if (message.type === 'REACT_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
+            if (freezeReactRouteDisplayAfterNavigation) {
+                return;
+            }
             setCachedReactRouterData(message.data);
             // 只有当前在 React 子 Tab 时才刷新显示
             if (currentTab === 'vue' && currentVueSubTab === 'react') {
@@ -2078,6 +2082,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 routeItem.querySelector('.open-btn').addEventListener('click', () => {
+                    freezeReactRouteDisplayAfterNavigation = true;
                     const openRoute = () => {
                         chrome.tabs.update(currentTab_obj.id, { url: fullUrl });
                     };
