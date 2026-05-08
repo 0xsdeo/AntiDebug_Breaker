@@ -294,6 +294,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({success: true});
         return true;
     }
+
+    // 处理 React Router 数据
+    if (message.type === 'REACT_ROUTER_DATA' && sender.tab) {
+        try {
+            const hostname = new URL(sender.tab.url).hostname;
+            const storageKey = `${hostname}_react_data`;
+
+            // 存储 React Router 数据
+            chrome.storage.local.set({
+                [storageKey]: {
+                    ...message.data,
+                    timestamp: Date.now()
+                }
+            });
+
+            // 转发给已打开的 popup
+            chrome.runtime.sendMessage({
+                type: 'REACT_ROUTER_DATA_UPDATE',
+                hostname: hostname,
+                data: message.data
+            }).catch(() => {});
+        } catch (e) {
+            console.error('[AntiDebug] Failed to store React Router data:', e);
+        }
+
+        sendResponse({success: true});
+        return true;
+    }
     
     return true;
 });
@@ -314,12 +342,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         updateBadgeForTab(tab);
     }
     
-    // 当页面开始加载时，清除旧的 Vue Router 数据
+    // 当页面开始加载时，清除旧的路由数据
     if (changeInfo.status === 'loading' && tab.url) {
         try {
             const hostname = new URL(tab.url).hostname;
-            const storageKey = `${hostname}_vue_data`;
-            chrome.storage.local.remove(storageKey);
+            chrome.storage.local.remove([
+                `${hostname}_vue_data`,
+                `${hostname}_react_data`
+            ]);
         } catch (e) {
             // 忽略错误
         }

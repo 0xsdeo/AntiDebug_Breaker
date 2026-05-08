@@ -21,17 +21,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // 🆕 自动触发Vue重扫描
     function triggerVueRescan() {
         try {
-            // 向页面发送重扫描消息
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 if (tabs[0]) {
                     chrome.tabs.sendMessage(tabs[0].id, {
                         type: 'TRIGGER_VUE_RESCAN',
                         source: 'antidebug-extension'
                     }, () => {
-                        // 忽略错误，某些页面可能没有content script
-                        if (chrome.runtime.lastError) {
-                            // 静默处理错误
-                        }
+                        if (chrome.runtime.lastError) {}
                     });
                 }
             });
@@ -40,8 +36,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 自动触发React重扫描
+    function triggerReactRescan() {
+        try {
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        type: 'TRIGGER_REACT_RESCAN',
+                        source: 'antidebug-extension'
+                    }, () => {
+                        if (chrome.runtime.lastError) {}
+                    });
+                }
+            });
+        } catch (error) {
+            console.warn('触发React重扫描失败:', error);
+        }
+    }
+
     // popup打开时自动触发重扫描
     triggerVueRescan();
+    triggerReactRescan();
 
     // ========== Base模式偏好设置（全局持久化） ==========
     function getBaseModePreference() {
@@ -81,6 +96,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const routesActionsFooter = document.querySelector('.routes-actions-footer');
     const copyAllPathsBtn = document.querySelector('.copy-all-paths-btn');
     const copyAllUrlsBtn = document.querySelector('.copy-all-urls-btn');
+
+    // Vue/React 子Tab相关DOM元素
+    const vueSubContent = document.querySelector('.vue-sub-content');
+    const reactSubContent = document.querySelector('.react-sub-content');
+    const reactScriptsList = document.querySelector('.react-scripts-list');
+    const vueSubtabBtns = document.querySelectorAll('.vue-subtab-btn');
 
     // 🆕 全局模式相关DOM元素
     const globalModeToggle = document.getElementById('global-mode-toggle');
@@ -127,6 +148,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedVueDataList = []; // 在popup中缓存所有Vue实例数据（改为数组）
     let currentInstanceIndex = 0; // 当前选中的实例索引
     let isFirstVueDataDisplay = true; // 🆕 标记是否是首次显示Vue路由数据
+    let currentVueSubTab = 'vue'; // Vue/React子板块当前激活的子Tab
+    let cachedReactData = null; // 缓存 React 路由数据
+    let cachedReactDataList = []; // Cache React router instances for multi-root pages
+    let currentReactInstanceIndex = 0; // Currently selected React instance
+    let isFirstReactDataDisplay = true; // Track first React route list render for last-opened restore
+    let hasRestoredReactInstanceSelection = false; // Avoid repeatedly switching React instance from storage
+    let hasRestoredReactLastOpenedRoute = false; // Avoid repeated React route highlight after success
+    let reactLastOpenedRouteRestoreTimer = null; // Debounce restore while route list is re-rendering
+    let reactLastOpenedRouteRestoreDeadline = Date.now() + 3000; // Route data may re-render shortly after popup opens
 
     // 🆕 全局模式状态管理
     let isGlobalMode = false; // 当前是否为全局模式
@@ -138,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 🆕 全局模式存储键名
     const GLOBAL_MODE_KEY = 'antidebug_mode';
     const GLOBAL_SCRIPTS_KEY = 'global_scripts';
+    const LAST_VUE_SUBTAB_KEY = 'last_active_vue_subtab';
 
     // 🆕 脚本组合转换函数：将合并脚本展开为独立脚本（移到前面以便其他函数使用）
     const expandCombinedScripts = (scriptIds) => {
@@ -319,8 +350,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 监听来自 background 的 Vue Router 数据更新
+    // 监听来自 background 的路由数据更新
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        // React 路由数据更新
+        if (message.type === 'REACT_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
+            setCachedReactRouterData(message.data);
+            // 只有当前在 React 子 Tab 时才刷新显示
+            if (currentTab === 'vue' && currentVueSubTab === 'react') {
+                displayReactMultipleInstances();
+            }
+        }
+
         if (message.type === 'VUE_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
             const data = message.data;
             
@@ -371,6 +411,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 请求页面的React Router数据
+    function requestReactRouterData() {
+        if (currentTab_obj && currentTab_obj.id) {
+            chrome.tabs.sendMessage(currentTab_obj.id, {
+                type: 'REQUEST_REACT_ROUTER_DATA'
+            }).catch(err => {
+                console.warn('请求React数据失败:', err);
+            });
+        }
+    }
+
     // 获取当前标签页的域名
     chrome.tabs.query({
         active: true,
@@ -397,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return globalEnabledScripts;
                     } else {
                         // 标准模式：获取该域名下的启用状态
-                        chrome.storage.local.get([hostname, 'last_active_tab'], (result) => {
+                        chrome.storage.local.get([hostname, 'last_active_tab', LAST_VUE_SUBTAB_KEY], (result) => {
                             // 🆕 展开合并脚本
                             enabledScripts = expandCombinedScripts(result[hostname] || []);
                             // 初始化合并Hooks数据
@@ -416,6 +467,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             }
 
+                            // 恢复Vue子Tab状态
+                            if (result[LAST_VUE_SUBTAB_KEY]) {
+                                currentVueSubTab = result[LAST_VUE_SUBTAB_KEY];
+                                vueSubtabBtns.forEach(b => {
+                                    b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
+                                });
+                            }
+
                             renderCurrentTab();
 
                             // 检查是否启用了 Get_Vue_0 或 Get_Vue_1 脚本
@@ -426,6 +485,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (hasVueScript) {
                                 requestVueRouterData();
                             }
+
+                            // 如果启用了 Get_React_0，先从 storage 读取缓存，再请求实时数据
+                            if (enabledScripts.includes('Get_React_0')) {
+                                const reactStorageKey = `${hostname}_react_data`;
+                                chrome.storage.local.get([reactStorageKey], (storageResult) => {
+                                    if (storageResult[reactStorageKey]) {
+                                        setCachedReactRouterData(storageResult[reactStorageKey]);
+                                        if (currentTab === 'vue' && currentVueSubTab === 'react') {
+                                            displayReactMultipleInstances();
+                                        }
+                                    }
+                                    requestReactRouterData();
+                                });
+                            }
                         });
                         return [];
                     }
@@ -435,19 +508,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => {
                     if (isGlobalMode) {
                         // 🔧 修复：全局模式下也需要恢复上次打开的板块
-                        chrome.storage.local.get(['last_active_tab'], (result) => {
-                            // 恢复上次打开的板块
-                            if (result.last_active_tab) {
-                                currentTab = result.last_active_tab;
-                                // 更新UI中的按钮状态
-                                tabBtns.forEach(b => {
-                                    if (b.dataset.tab === currentTab) {
-                                        b.classList.add('active');
-                                    } else {
-                                        b.classList.remove('active');
-                                    }
-                                });
-                            }
+                            chrome.storage.local.get(['last_active_tab', LAST_VUE_SUBTAB_KEY], (result) => {
+                                // 恢复上次打开的板块
+                                if (result.last_active_tab) {
+                                    currentTab = result.last_active_tab;
+                                    // 更新UI中的按钮状态
+                                    tabBtns.forEach(b => {
+                                        if (b.dataset.tab === currentTab) {
+                                            b.classList.add('active');
+                                        } else {
+                                            b.classList.remove('active');
+                                        }
+                                    });
+                                }
+
+                                // 恢复Vue子Tab状态
+                                if (result[LAST_VUE_SUBTAB_KEY]) {
+                                    currentVueSubTab = result[LAST_VUE_SUBTAB_KEY];
+                                    vueSubtabBtns.forEach(b => {
+                                        b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
+                                    });
+                                }
                             
                             // 🆕 展开合并脚本
                             enabledScripts = expandCombinedScripts([...globalEnabledScripts]);
@@ -460,6 +541,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                 enabledScripts.includes('Get_Vue_1');
                             if (hasVueScript) {
                                 requestVueRouterData();
+                            }
+
+                            // 检查React脚本，先从 storage 读取缓存，再请求实时数据
+                            if (enabledScripts.includes('Get_React_0')) {
+                                const reactStorageKey = `${hostname}_react_data`;
+                                chrome.storage.local.get([reactStorageKey], (storageResult) => {
+                                    if (storageResult[reactStorageKey]) {
+                                        setCachedReactRouterData(storageResult[reactStorageKey]);
+                                        if (currentTab === 'vue' && currentVueSubTab === 'react') {
+                                            displayReactMultipleInstances();
+                                        }
+                                    }
+                                    requestReactRouterData();
+                                });
                             }
                         });
                     } else {
@@ -532,6 +627,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Vue/React 子Tab切换事件
+    vueSubtabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            vueSubtabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentVueSubTab = btn.dataset.subtab;
+            chrome.storage.local.set({ [LAST_VUE_SUBTAB_KEY]: currentVueSubTab });
+            renderVueSubTab();
+        });
+    });
+
     // 🆕 Hook板块筛选按钮点击事件
     if (hookFilterEnabledBtn && hookFilterDisabledBtn) {
         hookFilterEnabledBtn.addEventListener('click', () => {
@@ -573,8 +679,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 根据当前标签获取要显示的脚本
     function getScriptsForCurrentTab() {
+        let category = currentTab;
+        if (currentTab === 'vue') {
+            category = currentVueSubTab; // 'vue' 或 'react'
+        }
         return allScripts.filter(script => 
-            script.category === currentTab && 
+            script.category === category && 
             !script.hidden  // 🆕 过滤隐藏脚本
         );
     }
@@ -606,20 +716,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderHookScripts(scriptsToShow);
             });
         } else if (currentTab === 'vue') {
-            // 显示Vue板块
+            // 显示Vue/React板块
             searchContainer.style.display = 'none';
             searchContainer.classList.remove('hook-search-container');
             if (hookNoticeContainer) hookNoticeContainer.style.display = 'none';
             scriptsGrid.style.display = 'none';
             hookContent.style.display = 'none';
             vueContent.style.display = 'flex';
-            renderVueScripts(scriptsToShow);
-            // 使用缓存的数据显示（改为多实例显示）
-            displayMultipleInstances();
+            // 同步子Tab按钮状态
+            vueSubtabBtns.forEach(b => {
+                b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
+            });
+            renderVueSubTab();
         }
 
         // 每次渲染后同步反反Hook开关状态
         updateAntiAntiHookToggle();
+    }
+
+    // 渲染Vue/React子板块内容
+    function renderVueSubTab() {
+        if (currentVueSubTab === 'vue') {
+            if (vueSubContent) vueSubContent.style.display = 'flex';
+            if (reactSubContent) reactSubContent.style.display = 'none';
+            const scripts = allScripts.filter(s => s.category === 'vue' && !s.hidden);
+            renderVueScripts(scripts);
+            displayMultipleInstances();
+        } else if (currentVueSubTab === 'react') {
+            if (vueSubContent) vueSubContent.style.display = 'none';
+            if (reactSubContent) reactSubContent.style.display = 'flex';
+            const scripts = allScripts.filter(s => s.category === 'react' && !s.hidden);
+            renderReactScripts(scripts);
+
+            const hasReactScript = enabledScripts.includes('Get_React_0');
+
+            // 优先用内存缓存，无缓存则从 storage 读取（background 已存储时可直接展示）
+            if (cachedReactData) {
+                displayReactMultipleInstances();
+                if (hasReactScript) requestReactRouterData();
+            } else {
+                const reactStorageKey = `${hostname}_react_data`;
+                chrome.storage.local.get([reactStorageKey], (storageResult) => {
+                    if (storageResult[reactStorageKey]) {
+                        setCachedReactRouterData(storageResult[reactStorageKey]);
+                    }
+                    displayReactMultipleInstances();
+                    if (hasReactScript) requestReactRouterData();
+                });
+            }
+        }
     }
 
     // 渲染反调试脚本（3列网格）
@@ -756,6 +901,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isChildEnabled = enabledScripts.includes(childScript.id);
                     const childItem = createVueScriptItem(childScript, isChildEnabled, true);
                     vueScriptsList.appendChild(childItem);
+                });
+            }
+        });
+    }
+
+    // 渲染React脚本（横向列表，UI与Vue脚本相同）
+    function renderReactScripts(scripts) {
+        if (!reactScriptsList) return;
+        reactScriptsList.innerHTML = '';
+
+        const parentScripts = scripts.filter(script => !script.parentScript);
+
+        if (parentScripts.length === 0 && scripts.length === 0) {
+            reactScriptsList.innerHTML = '<div class="empty-state">暂无 React 脚本</div>';
+            return;
+        }
+
+        parentScripts.forEach(parentScript => {
+            if (typeof parentScript.id !== 'string' || !parentScript.id.trim()) return;
+
+            const isParentEnabled = enabledScripts.includes(parentScript.id) ||
+                scripts.some(s => s.parentScript === parentScript.id && enabledScripts.includes(s.id));
+            const parentItem = createVueScriptItem(parentScript, isParentEnabled, false);
+            reactScriptsList.appendChild(parentItem);
+
+            const childScripts = scripts.filter(s => s.parentScript === parentScript.id);
+            if (isParentEnabled && childScripts.length > 0) {
+                childScripts.forEach(childScript => {
+                    const isChildEnabled = enabledScripts.includes(childScript.id);
+                    const childItem = createVueScriptItem(childScript, isChildEnabled, true);
+                    reactScriptsList.appendChild(childItem);
                 });
             }
         });
@@ -1533,6 +1709,506 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 显示当前选中的实例
         displayVueRouterData(cachedVueDataList[currentInstanceIndex]);
+    }
+
+    function getReactInstanceKey(instance, index) {
+        if (!instance) return `react-${index}`;
+        return instance.rootId || instance.containerPath || instance.source || instance.instanceId || `react-${index}`;
+    }
+
+    function getReactInstanceLabel(instance, index) {
+        const rawLabel = getReactInstanceKey(instance, index);
+        return String(rawLabel)
+            .replace(/^document\./, '')
+            .replace(/^getElementById/, 'id')
+            .replace(/^querySelector/, 'selector');
+    }
+
+    function getReactLastOpenedRouteStorageKey() {
+        return `${hostname}_react_last_opened_route`;
+    }
+
+    function normalizeReactRoutePath(path) {
+        if (!path || typeof path !== 'string') return '';
+        let normalized = path.trim();
+        if (!normalized) return '';
+        const queryIndex = normalized.search(/[?#]/);
+        if (queryIndex >= 0) normalized = normalized.slice(0, queryIndex);
+        if (!normalized.startsWith('/')) normalized = '/' + normalized;
+        if (normalized.length > 1 && normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+        return normalized;
+    }
+
+    function getReactRoutePathFromUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        try {
+            const parsed = new URL(url);
+            if (parsed.hash) {
+                const hashPath = parsed.hash.replace(/^#/, '');
+                if (hashPath && hashPath !== '/') return normalizeReactRoutePath(hashPath);
+            }
+            return normalizeReactRoutePath(parsed.pathname);
+        } catch (e) {
+            const hashIndex = url.indexOf('#');
+            if (hashIndex >= 0) {
+                return normalizeReactRoutePath(url.slice(hashIndex + 1));
+            }
+            return normalizeReactRoutePath(url);
+        }
+    }
+
+    function normalizeReactLastOpenedRoute(value) {
+        if (!value) return null;
+        if (typeof value === 'string') {
+            return {
+                url: value,
+                routePath: getReactRoutePathFromUrl(value)
+            };
+        }
+        if (typeof value === 'object' && typeof value.url === 'string') {
+            return {
+                ...value,
+                routePath: normalizeReactRoutePath(value.routePath) || getReactRoutePathFromUrl(value.url)
+            };
+        }
+        return null;
+    }
+
+    function findReactRouteItemByLastOpened(container, lastOpenedRoute) {
+        if (!container || !lastOpenedRoute) return null;
+
+        return Array.from(container.querySelectorAll('.route-item')).find(item => {
+            const openBtn = item.querySelector('.open-btn');
+            if (!openBtn) return false;
+            if (openBtn.dataset.url === lastOpenedRoute.url) return true;
+            return Boolean(lastOpenedRoute.routePath) &&
+                normalizeReactRoutePath(openBtn.dataset.routePath || '') === lastOpenedRoute.routePath;
+        }) || null;
+    }
+
+    function scrollReactRouteItemIntoView(routeItem) {
+        if (!routeItem) return;
+
+        const scrollContainer = routeItem.closest('.vue-content') || routeItem.closest('.react-sub-content');
+        if (scrollContainer && typeof scrollContainer.scrollTop === 'number') {
+            const itemRect = routeItem.getBoundingClientRect();
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const targetTop = scrollContainer.scrollTop + itemRect.top - containerRect.top -
+                Math.max(0, (containerRect.height - itemRect.height) / 2);
+            scrollContainer.scrollTop = Math.max(0, targetTop);
+        }
+
+        routeItem.scrollIntoView({
+            behavior: 'auto',
+            block: 'center'
+        });
+    }
+
+    function scheduleReactLastOpenedRouteRestore(reactRouterInfo, routesListContainer, routeSearchInput) {
+        if (hasRestoredReactLastOpenedRoute && Date.now() > reactLastOpenedRouteRestoreDeadline) return;
+        if (!isFirstReactDataDisplay && !hasRestoredReactLastOpenedRoute) return;
+        if (!reactRouterInfo || !reactRouterInfo.routes || reactRouterInfo.routes.length === 0) return;
+        if (!routesListContainer) return;
+        if (routeSearchInput && routeSearchInput.value.trim() !== '') return;
+
+        const storageKey = getReactLastOpenedRouteStorageKey();
+        chrome.storage.local.get([storageKey], (result) => {
+            const lastOpenedRoute = normalizeReactLastOpenedRoute(result[storageKey]);
+            if (!lastOpenedRoute || !lastOpenedRoute.url) {
+                isFirstReactDataDisplay = false;
+                return;
+            }
+
+            const hasStoredRootInCurrentData = lastOpenedRoute.rootId && cachedReactDataList.some(instance => {
+                return instance && instance.rootId === lastOpenedRoute.rootId;
+            });
+            if (hasStoredRootInCurrentData && reactRouterInfo.rootId && lastOpenedRoute.rootId !== reactRouterInfo.rootId) {
+                return;
+            }
+
+            if (reactLastOpenedRouteRestoreTimer) {
+                clearTimeout(reactLastOpenedRouteRestoreTimer);
+                reactLastOpenedRouteRestoreTimer = null;
+            }
+
+            reactLastOpenedRouteRestoreTimer = setTimeout(() => {
+                reactLastOpenedRouteRestoreTimer = null;
+                const targetRouteItem = findReactRouteItemByLastOpened(routesListContainer, lastOpenedRoute);
+                if (!targetRouteItem) return;
+
+                scrollReactRouteItemIntoView(targetRouteItem);
+                targetRouteItem.classList.add('highlight-last-opened');
+                setTimeout(() => {
+                    targetRouteItem.classList.remove('highlight-last-opened');
+                }, 2000);
+
+                hasRestoredReactLastOpenedRoute = true;
+                isFirstReactDataDisplay = false;
+            }, 160);
+        });
+    }
+
+    function setCachedReactRouterData(data) {
+        const previous = cachedReactDataList[currentReactInstanceIndex];
+        const previousKey = previous ? getReactInstanceKey(previous, currentReactInstanceIndex) : null;
+
+        cachedReactData = data || null;
+        if (!data) {
+            cachedReactDataList = [];
+            currentReactInstanceIndex = 0;
+            return;
+        }
+
+        const rawInstances = Array.isArray(data.instances) && data.instances.length > 0
+            ? data.instances.filter(Boolean)
+            : [data];
+        const instances = [];
+        const seenRootIds = new Set();
+        rawInstances.forEach(instance => {
+            const rootId = instance && instance.rootId;
+            if (rootId) {
+                if (seenRootIds.has(rootId)) return;
+                seenRootIds.add(rootId);
+            }
+            instances.push(instance);
+        });
+
+        cachedReactDataList = instances;
+        if (previousKey) {
+            const matchedIndex = cachedReactDataList.findIndex((instance, index) => {
+                return getReactInstanceKey(instance, index) === previousKey;
+            });
+            currentReactInstanceIndex = matchedIndex >= 0 ? matchedIndex : 0;
+        } else if (currentReactInstanceIndex >= cachedReactDataList.length) {
+            currentReactInstanceIndex = 0;
+        }
+    }
+
+    function displayReactMultipleInstances() {
+        const instanceTabs = document.querySelector('.react-instance-tabs');
+        const tabsHeader = document.querySelector('.react-instance-tabs-header');
+
+        if (!cachedReactDataList || cachedReactDataList.length === 0) {
+            if (instanceTabs) instanceTabs.style.display = 'none';
+            displayReactRouterData(cachedReactData);
+            return;
+        }
+
+        if (!tabsHeader || !instanceTabs || cachedReactDataList.length === 1) {
+            if (instanceTabs) instanceTabs.style.display = 'none';
+            currentReactInstanceIndex = 0;
+            displayReactRouterData(cachedReactDataList[0]);
+            return;
+        }
+
+        if (currentReactInstanceIndex >= cachedReactDataList.length) {
+            currentReactInstanceIndex = 0;
+        }
+
+        if (!hasRestoredReactInstanceSelection) {
+            hasRestoredReactInstanceSelection = true;
+            const storageKey = getReactLastOpenedRouteStorageKey();
+            chrome.storage.local.get([storageKey], (result) => {
+                const lastOpenedRoute = normalizeReactLastOpenedRoute(result[storageKey]);
+                if (!lastOpenedRoute || !lastOpenedRoute.rootId) return;
+
+                const matchedIndex = cachedReactDataList.findIndex(instance => {
+                    return instance && instance.rootId === lastOpenedRoute.rootId;
+                });
+
+                if (matchedIndex >= 0 && matchedIndex !== currentReactInstanceIndex) {
+                    currentReactInstanceIndex = matchedIndex;
+                    displayReactMultipleInstances();
+                }
+            });
+        }
+
+        instanceTabs.style.display = 'block';
+        tabsHeader.innerHTML = '';
+
+        cachedReactDataList.forEach((instance, index) => {
+            const tabBtn = document.createElement('button');
+            tabBtn.className = `instance-tab-btn ${index === currentReactInstanceIndex ? 'active' : ''}`;
+            tabBtn.type = 'button';
+
+            const routeCount = Array.isArray(instance.routes) ? instance.routes.length : 0;
+            const modeLabel = instance.routerMode || instance.routerType || 'React';
+            const title = getReactInstanceLabel(instance, index);
+            tabBtn.title = `${title} | ${routeCount} routes`;
+            tabBtn.innerHTML = `
+                <div class="instance-tab-title">实例 ${index + 1}</div>
+                <div class="instance-tab-subtitle">${modeLabel} · ${routeCount} 路由</div>
+            `;
+
+            tabBtn.onclick = () => {
+                tabsHeader.querySelectorAll('.instance-tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                tabBtn.classList.add('active');
+                currentReactInstanceIndex = index;
+                displayReactRouterData(cachedReactDataList[index]);
+            };
+
+            tabsHeader.appendChild(tabBtn);
+        });
+
+        displayReactRouterData(cachedReactDataList[currentReactInstanceIndex]);
+    }
+
+    // 显示 React Router 数据
+    function displayReactRouterData(reactRouterInfo) {
+        const reactRoutesInfoBar = document.querySelector('.react-routes-info-bar');
+        const reactRouteSearchContainer = document.querySelector('.react-route-search-container');
+        const reactRoutesListContainer = document.querySelector('.react-routes-list-container');
+        const reactRoutesActionsFooter = document.querySelector('.react-routes-actions-footer');
+        const reactRouteSearchInput = document.getElementById('react-route-search-input');
+        const reactCopyAllPathsBtn = document.querySelector('.react-copy-all-paths-btn');
+        const reactCopyAllUrlsBtn = document.querySelector('.react-copy-all-urls-btn');
+        const reactBaseInputContainer = document.querySelector('.react-route-base-input-container');
+
+        if (!reactRoutesListContainer) return;
+
+        // URL 清理：去多余斜杠和尾部斜杠
+        const cleanUrl = (url) => url.replace(/([^:]\/)\/+/g, '$1').replace(/\/$/, '');
+
+        // 默认隐藏可选区域
+        if (reactRoutesInfoBar) reactRoutesInfoBar.style.display = 'none';
+        if (reactRouteSearchContainer) reactRouteSearchContainer.style.display = 'none';
+        if (reactRoutesActionsFooter) reactRoutesActionsFooter.style.display = 'none';
+        if (reactBaseInputContainer) reactBaseInputContainer.style.display = 'none';
+
+        if (!reactRouterInfo) {
+            reactRoutesListContainer.innerHTML = '<div class="empty-state">等待检测 React Router（如需检测请打开<strong>获取路由</strong>并刷新网站）</div>';
+            return;
+        }
+
+        if (reactRouterInfo.notFound) {
+            reactRoutesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 React Router（可尝试重新打开插件）</div>';
+            return;
+        }
+
+        if (reactRouterInfo.serializationError) {
+            reactRoutesListContainer.innerHTML = '<div class="empty-state">❌ 路由数据传输失败，请查看控制台（F12）输出的路由信息！</div>';
+            return;
+        }
+
+        const allRoutes = reactRouterInfo.routes;
+        if (!allRoutes || allRoutes.length === 0) {
+            reactRoutesListContainer.innerHTML = '<div class="empty-state">⚠️ 路由表为空</div>';
+            return;
+        }
+
+        if (reactRoutesInfoBar) reactRoutesInfoBar.style.display = 'flex';
+        if (reactRouteSearchContainer) reactRouteSearchContainer.style.display = 'flex';
+        if (reactRoutesActionsFooter) reactRoutesActionsFooter.style.display = 'flex';
+
+        const routerMode = reactRouterInfo.routerMode ?? null;
+        let baseUrl = window.location.origin;
+        if (currentTab_obj && currentTab_obj.url) {
+            try { baseUrl = new URL(currentTab_obj.url).origin; } catch (e) {}
+        }
+
+        // ===== Base URL 处理（参照 Vue 板块逻辑）=====
+        const detectedBase = reactRouterInfo.routerBase || '';
+        let shouldShowBaseInput = false;
+        let cleanDetectedBase = '';
+
+        if (detectedBase.trim() !== '') {
+            if (detectedBase.startsWith('http://') || detectedBase.startsWith('https://') || detectedBase.includes('#')) {
+                console.warn('[AntiDebug] React 检测到的 basename 无效，已忽略:', detectedBase);
+            } else {
+                cleanDetectedBase = detectedBase.endsWith('/') ? detectedBase.slice(0, -1) : detectedBase;
+                if (cleanDetectedBase !== '/' && cleanDetectedBase !== '') {
+                    shouldShowBaseInput = true;
+                }
+            }
+        }
+
+        let currentCustomBase = ''; // 当前用户输入/存储的 base
+
+        // 构建完整 URL（含 base 处理）
+        function buildFullUrl(normalizedPath) {
+            const baseUrlWithoutTrailingSlash = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+
+            if (currentCustomBase && currentCustomBase.trim() !== '') {
+                const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                if (routerMode === 'hash') {
+                    return `${baseUrlWithoutTrailingSlash}${cleanBase}/#/${cleanPath}`;
+                } else {
+                    return cleanUrl(baseUrl + cleanBase + normalizedPath);
+                }
+            } else {
+                if (routerMode === 'hash') {
+                    return `${baseUrlWithoutTrailingSlash}/#/${cleanPath}`;
+                } else {
+                    return baseUrl + normalizedPath;
+                }
+            }
+        }
+
+        // 渲染路由列表（按完整 URL 去重）
+        function renderRoutes(routesToShow) {
+            reactRoutesListContainer.innerHTML = '';
+            const seenUrls = new Set();
+            routesToShow.forEach(route => {
+                const rawPath = route.path || '/';
+                const normalizedPath = rawPath.startsWith('/') ? rawPath : '/' + rawPath;
+                const fullUrl = buildFullUrl(normalizedPath);
+                const routePath = normalizeReactRoutePath(normalizedPath);
+                if (seenUrls.has(fullUrl)) return;
+                seenUrls.add(fullUrl);
+
+                const routeItem = document.createElement('div');
+                routeItem.className = 'route-item';
+                routeItem.innerHTML = `
+                    <div class="route-url" title="${fullUrl}">${fullUrl}</div>
+                    <div class="route-actions">
+                        <button class="route-btn copy-btn" data-url="${fullUrl}">复制</button>
+                        <button class="route-btn open-btn" data-url="${fullUrl}" data-route-path="${routePath}">打开</button>
+                    </div>
+                `;
+
+                routeItem.querySelector('.copy-btn').addEventListener('click', () => {
+                    navigator.clipboard.writeText(fullUrl).then(() => {
+                        const btn = routeItem.querySelector('.copy-btn');
+                        btn.textContent = '✓ 已复制';
+                        setTimeout(() => { btn.textContent = '复制'; }, 1500);
+                    }).catch(err => console.error('复制失败:', err));
+                });
+
+                routeItem.querySelector('.open-btn').addEventListener('click', () => {
+                    const openRoute = () => {
+                        chrome.tabs.update(currentTab_obj.id, { url: fullUrl });
+                    };
+                    if (reactRouterInfo && reactRouterInfo.routes && reactRouterInfo.routes.length > 0) {
+                        chrome.storage.local.set({
+                            [getReactLastOpenedRouteStorageKey()]: {
+                                url: fullUrl,
+                                routePath,
+                                rootId: reactRouterInfo.rootId || '',
+                                containerPath: reactRouterInfo.containerPath || '',
+                                timestamp: Date.now()
+                            }
+                        }, openRoute);
+                    } else {
+                        openRoute();
+                    }
+                });
+
+                reactRoutesListContainer.appendChild(routeItem);
+            });
+
+            scheduleReactLastOpenedRouteRestore(reactRouterInfo, reactRoutesListContainer, reactRouteSearchInput);
+        }
+
+        // 渲染并更新信息头计数（去重后的真实数量）
+        function renderRoutesAndUpdateCount(routesToShow) {
+            renderRoutes(routesToShow);
+            const reactRoutesInfo = document.querySelector('.react-routes-info');
+            if (reactRoutesInfo) {
+                const renderedCount = reactRoutesListContainer.querySelectorAll('.route-item').length;
+                reactRoutesInfo.innerHTML = `完整路由列表 (<span class="highlight">${routerMode}</span> 模式) -- <span class="highlight">${renderedCount}</span> 条路由`;
+            }
+        }
+
+        // 搜索时重渲染
+        function renderRoutesWithSearch() {
+            const term = (reactRouteSearchInput ? reactRouteSearchInput.value : '').toLowerCase().trim();
+            if (term) {
+                const filtered = allRoutes.filter(r =>
+                    (r.path || '').toLowerCase().includes(term) || (r.name || '').toLowerCase().includes(term)
+                );
+                renderRoutesAndUpdateCount(filtered);
+            } else {
+                renderRoutesAndUpdateCount(allRoutes);
+            }
+        }
+
+        // ===== Base URL 输入区 =====
+        if (shouldShowBaseInput && reactBaseInputContainer) {
+            reactBaseInputContainer.style.display = 'flex';
+            const detectedBaseValue = reactBaseInputContainer.querySelector('.react-detected-base-value');
+            const applyBtn = reactBaseInputContainer.querySelector('.react-apply-detected-base-btn');
+            const customInput = document.getElementById('react-custom-base-input');
+            const clearBtn = reactBaseInputContainer.querySelector('.react-clear-base-btn');
+
+            if (detectedBaseValue) detectedBaseValue.textContent = cleanDetectedBase;
+
+            // 从 storage 恢复自定义 base
+            const storageKey = `${hostname}_react_custom_base`;
+            chrome.storage.local.get([storageKey], (result) => {
+                currentCustomBase = result[storageKey] || '';
+                if (customInput) customInput.value = currentCustomBase;
+                renderRoutesWithSearch();
+            });
+
+            if (applyBtn) {
+                applyBtn.onclick = () => {
+                    currentCustomBase = cleanDetectedBase;
+                    if (customInput) customInput.value = currentCustomBase;
+                    chrome.storage.local.set({ [storageKey]: currentCustomBase });
+                    renderRoutesWithSearch();
+                };
+            }
+            if (clearBtn) {
+                clearBtn.onclick = () => {
+                    currentCustomBase = '';
+                    if (customInput) customInput.value = '';
+                    chrome.storage.local.set({ [storageKey]: '' });
+                    renderRoutesWithSearch();
+                };
+            }
+            if (customInput) {
+                customInput.oninput = (e) => {
+                    currentCustomBase = e.target.value.trim();
+                    chrome.storage.local.set({ [storageKey]: currentCustomBase });
+                    renderRoutesWithSearch();
+                };
+            }
+        } else {
+            renderRoutesAndUpdateCount(allRoutes);
+        }
+
+        // 搜索框
+        if (reactRouteSearchInput) {
+            reactRouteSearchInput.value = '';
+            reactRouteSearchInput.oninput = renderRoutesWithSearch;
+        }
+
+        // 批量复制路径
+        if (reactCopyAllPathsBtn) {
+            reactCopyAllPathsBtn.onclick = () => {
+                const text = allRoutes.map(r => {
+                    const p = r.path || '/';
+                    const normalizedPath = p.startsWith('/') ? p : '/' + p;
+                    if (currentCustomBase && currentCustomBase.trim() !== '') {
+                        const cleanBase = currentCustomBase.endsWith('/') ? currentCustomBase.slice(0, -1) : currentCustomBase;
+                        return cleanBase + normalizedPath;
+                    }
+                    return normalizedPath;
+                }).join('\n');
+                navigator.clipboard.writeText(text).then(() => {
+                    reactCopyAllPathsBtn.textContent = '✓ 已复制';
+                    setTimeout(() => { reactCopyAllPathsBtn.textContent = '复制所有路径'; }, 1500);
+                }).catch(err => console.error('复制失败:', err));
+            };
+        }
+
+        // 批量复制完整 URL
+        if (reactCopyAllUrlsBtn) {
+            reactCopyAllUrlsBtn.onclick = () => {
+                const text = allRoutes.map(r => {
+                    const p = r.path || '/';
+                    const normalizedPath = p.startsWith('/') ? p : '/' + p;
+                    return buildFullUrl(normalizedPath);
+                }).join('\n');
+                navigator.clipboard.writeText(text).then(() => {
+                    reactCopyAllUrlsBtn.textContent = '✓ 已复制';
+                    setTimeout(() => { reactCopyAllUrlsBtn.textContent = '复制所有URL'; }, 1500);
+                }).catch(err => console.error('复制失败:', err));
+            };
+        }
     }
 
                 // 显示 Vue Router 数据

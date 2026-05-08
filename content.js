@@ -148,12 +148,30 @@
             }, '*');
             sendResponse({success: true});
         }
+
+        // 监听popup请求React数据
+        if (message.type === 'REQUEST_REACT_ROUTER_DATA') {
+            window.postMessage({
+                type: 'REQUEST_REACT_ROUTER_DATA',
+                source: 'antidebug-extension'
+            }, '*');
+            sendResponse({success: true});
+        }
         
         // 🆕 监听popup触发Vue重扫描请求
         if (message.type === 'TRIGGER_VUE_RESCAN') {
             // 转发重扫描请求到页面脚本
             window.postMessage({
                 type: 'MANUAL_RESCAN_VUE',
+                source: 'antidebug-extension'
+            }, '*');
+            sendResponse({success: true});
+        }
+
+        // 监听popup触发React重扫描请求
+        if (message.type === 'TRIGGER_REACT_RESCAN') {
+            window.postMessage({
+                type: 'MANUAL_RESCAN_REACT',
                 source: 'antidebug-extension'
             }, '*');
             sendResponse({success: true});
@@ -177,6 +195,14 @@
             }).catch(err => {
                 // 忽略错误（popup可能未打开）
             });
+        }
+
+        // 转发 React 路由数据到 background/popup
+        if (event.data && event.data.type === 'REACT_ROUTER_DATA' && event.data.source === 'get-react-script') {
+            chrome.runtime.sendMessage({
+                type: 'REACT_ROUTER_DATA',
+                data: event.data.data
+            }).catch(() => {});
         }
     });
 })();
