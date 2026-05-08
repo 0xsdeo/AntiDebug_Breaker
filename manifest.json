@@ -1,6 +1,6 @@
 {
   "name": "AntiDebug Breaker",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "description": "JavaScript Reverse Tools -- JS逆向工具",
   "manifest_version": 3,
   "permissions": [

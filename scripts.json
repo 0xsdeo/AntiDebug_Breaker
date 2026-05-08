@@ -121,12 +121,6 @@
     "category": "react"
   },
   {
-    "id": "Get_React_test",
-    "name": "测试脚本",
-    "description": "获取已加载的路由并显示在下方的表格中，注意未加载的路由不会被获取到，如果长时间未获取到可能是由于目标站点未使用react router，也可能是因为目标站点未加载完毕。",
-    "category": "react"
-  },
-  {
     "id": "Hook_cookie",
     "name": "document.cookie",
     "description": "开启本脚本后默认将在控制台打印设置的cookie，如果需要打印特定cookie请在下方输入框中输入cookie名称，脚本将会捕获这些特定cookie名。",
