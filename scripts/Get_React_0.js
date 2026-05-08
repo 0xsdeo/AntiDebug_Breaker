@@ -1,8 +1,8 @@
-// ==UserScript==
+﻿// ==UserScript==
 // @name         Get_React
 // @namespace    https://github.com/0xsdeo/Hook_JS
 // @version      v0.1
-// @description  获取React router路由
+// @description  获取 React Router 路由
 // @author       0xsdeo
 // @run-at       document-start
 // @match        *://*/*
@@ -16,7 +16,7 @@
     // ===== 全局执行锁，防止脚本重复运行 =====
     const LOCK_KEY = '__REACT_GETTER_RUNNING__';
     if (window[LOCK_KEY]) {
-        console.warn('⚠️ React路由获取脚本已在运行中，跳过本次执行');
+        console.warn('[AntiDebug] React 路由获取脚本已在运行，跳过本次执行');
         return;
     }
     try {
@@ -26,7 +26,7 @@
             configurable: false
         });
     } catch (e) {
-        console.warn('⚠️ 无法设置执行锁，脚本可能已在运行');
+        console.warn('[AntiDebug] 无法设置执行锁，脚本可能已在运行');
         return;
     }
 
@@ -41,6 +41,8 @@
     let nextRootId = 1;
     const rootObjectIds = new WeakMap();
     const rootPrimitiveIds = new Map();
+    const knownReactContainerKeys = [];
+    const knownReactHostFiberKeys = [];
     let printedReactInstances = new WeakSet();
     let printedReactInstanceKeys = new Set();
     let cachedResult = null; // 缓存找到的路由数据，供 REQUEST 时复用
@@ -79,6 +81,46 @@
         }
     }
 
+    function hasOwn(obj, key) {
+        return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+    }
+
+    function rememberReactDomKey(cache, key) {
+        if (key && cache.indexOf(key) === -1) {
+            cache.push(key);
+        }
+    }
+
+    function findReactDomKey(node, knownKeys, matcher, fixedKeys) {
+        if (!node || node.nodeType !== 1) return '';
+
+        for (let i = 0; i < knownKeys.length; i++) {
+            const key = knownKeys[i];
+            if (hasOwn(node, key) && node[key]) return key;
+        }
+
+        if (Array.isArray(fixedKeys)) {
+            for (let i = 0; i < fixedKeys.length; i++) {
+                const key = fixedKeys[i];
+                if (hasOwn(node, key) && node[key]) {
+                    rememberReactDomKey(knownKeys, key);
+                    return key;
+                }
+            }
+        }
+
+        const keys = Object.keys(node);
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            if (matcher(key) && node[key]) {
+                rememberReactDomKey(knownKeys, key);
+                return key;
+            }
+        }
+
+        return '';
+    }
+
     // ===== 发送数据到插件 =====
     function sendToExtension(data) {
         try {
@@ -102,14 +144,14 @@
                     }, '*');
                 } catch (e) {}
             } else {
-                console.error('[AntiDebug] postMessage发送失败:', error);
+                console.error('[AntiDebug] postMessage 发送失败:', error);
             }
         }
     }
 
     // ===== 重新扫描 =====
     function restartScanning() {
-        console.log('🔄 开始重新扫描React Router...');
+        console.log('[AntiDebug] 开始重新扫描 React Router...');
         allTimeoutIds.forEach(id => clearTimeout(id));
         allTimeoutIds = [];
         if (observer) {
@@ -129,7 +171,7 @@
         startPollingRetry();
     }
 
-    // ===== 监听插件请求（popup 打开时拉取缓存数据 / 触发重扫描）=====
+    // ===== 监听插件请求：popup 打开时拉取缓存数据或触发重扫描 =====
     window.addEventListener('message', (event) => {
         if (event.source !== window) return;
         if (!event.data || event.data.source !== 'antidebug-extension') return;
@@ -160,9 +202,9 @@
         return cleanBase + '/' + path;
     }
 
-    // ===== Phase 1: DOM层BFS扫描，寻找React挂载节点 =====
-    // React在调用 createRoot(domNode) 或 ReactDOM.render() 后，
-    // 会在挂载的DOM节点上注入一个带随机后缀的内部属性
+    // ===== Phase 1: DOM BFS 扫描，寻找 React 挂载节点 =====
+    // React 调用 createRoot(domNode) 或 ReactDOM.render() 后，
+    // 会在挂载 DOM 节点上注入带随机后缀的内部属性。
     function findReactContainers() {
         if (!document.body) return [];
 
@@ -176,23 +218,22 @@
             visited.add(node);
             if (node.nodeType !== 1) continue; // 只处理元素节点
 
-            // 用 for...in 检测React内部挂载属性
+            // 使用自身属性检测 React 内部挂载 key，避免枚举 DOM 原型链。
             // React 18 createRoot: __reactContainer$<randomKey>
-            // 某些版本:            __reactContainere$<randomKey>（多一个e）
+            // 某些版本:            __reactContainere$<randomKey>（多一个 e）
             // React 17 render:     _reactRootContainer
-            for (let prop in node) {
-                if (
-                    prop.startsWith('__reactContainer$') ||
-                    prop.startsWith('__reactContainere$') ||
-                    prop === '_reactRootContainer'
-                ) {
-                    results.push({
-                        node,
-                        prop,
-                        value: node[prop]
-                    });
-                    break; // 一个节点只需找到一个挂载属性
-                }
+            const prop = findReactDomKey(
+                node,
+                knownReactContainerKeys,
+                key => key.startsWith('__reactContainer$') || key.startsWith('__reactContainere$'),
+                ['_reactRootContainer']
+            );
+            if (prop) {
+                results.push({
+                    node,
+                    prop,
+                    value: node[prop]
+                });
             }
 
             for (let i = 0; i < node.childNodes.length; i++) {
@@ -201,40 +242,39 @@
         }
 
         if (results.length > 0) {
-            results.forEach(r => debugLog(`[AntiDebug] 检测到React挂载节点：${r.prop} on`, r.node));
+            results.forEach(r => debugLog(`[AntiDebug] 检测到 React 挂载节点：${r.prop} on`, r.node));
         }
         return results;
     }
 
-    // ===== 从容器信息中取得Fiber树的起始节点 =====
-    // 注意：__reactContainer$xxx 返回的是 HostRoot Fiber 本身（不是 FiberRoot！）
-    // 因为 React 源码中 markContainerAsRoot(root.current, container)
-    // 传入的是 root.current（HostRoot Fiber），而非 root（FiberRoot）
+    // ===== 从容器信息中取得 Fiber 树的起始节点 =====
+    // 注意：__reactContainer$xxx 返回的是 HostRoot Fiber 本身，不是 FiberRoot。
+    // React 源码中 markContainerAsRoot(root.current, container) 传入的是 root.current。
     //
-    // 因此直接取 .child 即可得到第一个真实组件 Fiber，
-    // 不能取 .current.child（Fiber 节点没有 .current 属性，那是 FiberRoot 的属性）
+    // 因此直接取 .child 可得到第一个真实组件 Fiber。
+    // 不能取 .current.child；.current 是 FiberRoot 的属性，不是 Fiber 节点的属性。
     function getStartFiber(containerInfo) {
         try {
             if (containerInfo.prop === '_reactRootContainer') {
-                // React 版本差异导致结构不同，需两种都尝试：
+                // React 版本差异会导致结构不同，需要两种路径都尝试。
                 //
-                // 方式A（React 17 常见结构）：
+                // 方式 A：React 17 常见结构。
                 //   _reactRootContainer = { _internalRoot: FiberRoot }
                 //   FiberRoot.current = HostRoot Fiber
                 //   HostRoot Fiber.child = 第一个组件 Fiber
                 const fiberA = containerInfo.value ?._internalRoot ?.current ?.child;
                 if (fiberA) {
-                    debugLog('[AntiDebug] _reactRootContainer（方式A _internalRoot）startFiber:', fiberA);
+                    debugLog('[AntiDebug] _reactRootContainer（方式 A: _internalRoot）startFiber:', fiberA);
                     return fiberA;
                 }
 
-                // 方式B（旧版React / 某些构建）：
+                // 方式 B：旧版 React / 某些构建中直接带 .current。
                 //   _reactRootContainer = FiberRoot（直接带 .current）
                 //   FiberRoot.current = HostRoot Fiber
                 //   HostRoot Fiber.child = 第一个组件 Fiber
                 const fiberB = containerInfo.value ?.current ?.child;
                 if (fiberB) {
-                    debugLog('[AntiDebug] _reactRootContainer（方式B 直接current）startFiber:', fiberB);
+                    debugLog('[AntiDebug] _reactRootContainer（方式 B: direct current）startFiber:', fiberB);
                     return fiberB;
                 }
 
@@ -242,21 +282,20 @@
                 return null;
             }
 
-            // React 18: __reactContainer$xxx = HostRoot Fiber（不是FiberRoot！）
+            // React 18: __reactContainer$xxx = HostRoot Fiber，不是 FiberRoot。
             //
-            // 关键：__reactContainer$xxx 只在 createRoot 时被赋值一次。
-            // 每次 render 提交后，React 会交换双缓冲区，FiberRoot.current 始终
-            // 指向最新提交的树，而 __reactContainer$xxx 原来指向的 fiber 可能
-            // 已变成 alternate（备用），其 .child 可能为 null。
+            // 关键：__reactContainer$xxx 只在 createRoot 时赋值一次。
+            // render 提交后 React 会交换双缓冲区，FiberRoot.current 始终指向最新提交树。
+            // 而 __reactContainer$xxx 原本指向的 fiber 可能已经变成 alternate，.child 可能为 null。
             //
-            // 正确路径：.stateNode（→FiberRoot）.current（→已提交的HostRoot）.child
+            // 正确路径：stateNode -> FiberRoot -> current -> HostRoot -> child。
             const fiberRoot = containerInfo.value ?.stateNode;
             const fiberA = fiberRoot ?.current ?.child;
             if (fiberA) {
                 debugLog('[AntiDebug] React 18 startFiber（via stateNode.current）:', fiberA);
                 return fiberA;
             }
-            // 兜底：直接取 .child（极少数情况下 alternate 上也有数据）
+            // 兜底：直接取 .child，少数情况下 alternate 上也有数据。
             const fiberB = containerInfo.value ?.child || null;
             debugLog('[AntiDebug] React 18 startFiber（via direct child）:', fiberB);
             return fiberB;
@@ -266,11 +305,10 @@
         }
     }
 
-    // ===== RouterProvider模式检测（v6 data router）=====
-    // 对应 React Router v6 的 createBrowserRouter + <RouterProvider router={router} />
-    // v6 data router 有专属方法 navigate / subscribe，v3/v4 router 没有
-    // React DevTools 在没有容器入口时，也可以从宿主 DOM 节点反查 Fiber。
-    // 这里不使用 DevTools hook，只参考这个方向：扫描 DOM 节点上的 __reactFiber$ / __reactInternalInstance$。
+    // ===== RouterProvider 模式检测（v6 data router）=====
+    // 对应 React Router v6 的 createBrowserRouter + <RouterProvider router={router} />。
+    // v6 data router 有专属的 navigate / subscribe 方法，v3/v4 router 没有。
+    // 不依赖 React DevTools hook，只扫描 DOM 节点上的 __reactFiber$ / __reactInternalInstance$ 作为兜底入口。
     function findReactHostFibers() {
         if (!document.body && !document.documentElement) return [];
 
@@ -289,21 +327,20 @@
             visited.add(node);
 
             if (node.nodeType === 1) {
-                for (let prop in node) {
-                    if (
-                        prop.startsWith('__reactFiber$') ||
-                        prop.startsWith('__reactInternalInstance$')
-                    ) {
-                        const fiber = node[prop];
-                        if (fiber && typeof fiber === 'object' && !seenFibers.has(fiber)) {
-                            seenFibers.add(fiber);
-                            results.push({
-                                node,
-                                prop,
-                                fiber
-                            });
-                        }
-                        break;
+                const prop = findReactDomKey(
+                    node,
+                    knownReactHostFiberKeys,
+                    key => key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$')
+                );
+                if (prop) {
+                    const fiber = node[prop];
+                    if (fiber && typeof fiber === 'object' && !seenFibers.has(fiber)) {
+                        seenFibers.add(fiber);
+                        results.push({
+                            node,
+                            prop,
+                            fiber
+                        });
                     }
                 }
             }
@@ -483,11 +520,11 @@
         newRecords.forEach((record, index) => {
             const displayName = getFiberDisplayName(record.startFiber) || '(unknown)';
             console.log(
-                `[AntiDebug] React实例 #${index + 1} 来源=${record.source} 入口组件=${displayName}`,
+                `[AntiDebug] React 实例 #${index + 1} 来源=${record.source} 入口组件=${displayName}`,
                 record.startFiber
             );
             if (record.rawFiber && record.rawFiber !== record.startFiber) {
-                console.log(`[AntiDebug] React实例 #${index + 1} 原始Host Fiber:`, record.rawFiber);
+                console.log(`[AntiDebug] React 实例 #${index + 1} 原始 Host Fiber:`, record.rawFiber);
             }
         });
 
@@ -576,8 +613,8 @@
         const router = props.router;
         if (!router || typeof router !== 'object') return false;
         if (!Array.isArray(router.routes)) return false;
-        // v6 data router 必有 navigate 方法；v3/v4 router 没有（用 push/transitionTo）
-        // 这是区分两者最可靠的特征
+        // v6 data router 必有 navigate 方法；v3/v4 router 通常使用 push/transitionTo。
+        // 这是区分两类 router 的可靠特征。
         if (typeof router.navigate !== 'function') return false;
         if (router.routes.length === 0) return true;
         return router.routes.some(r =>
@@ -589,26 +626,26 @@
     function isLegacyRouterObject(router) {
         if (!router || typeof router !== 'object') return false;
         if (!Array.isArray(router.routes) || router.routes.length === 0) return false;
-        // v3/v4 router 的专属方法
+        // v3/v4 router 的专属方法。
         if (typeof router.getCurrentLocation === 'function' ||
             typeof router.transitionTo === 'function' ||
             typeof router.listenBefore === 'function') {
             return true;
         }
-        // 或者 routes 数组中含有 v3/v4 专有字段
+        // 或 routes 数组中包含 v3/v4 专有字段。
         return router.routes.some(r =>
             r && typeof r === 'object' && ('childRoutes' in r || 'getComponent' in r || 'indexRoute' in r)
         );
     }
 
     // ===== React Router v3/v4 Legacy 模式检测 =====
-    // 两种存放位置：
+    // 两种常见存放位置：
     //   1. props.routes（直接是路由数组）
-    //   2. props.router.routes（routes 挂在 history-like 的 router 对象上）
+    //   2. props.router.routes（routes 挂在 history-like router 对象上）
     function isLegacyRouterRoutes(props) {
         if (!props || typeof props !== 'object') return false;
 
-        // Case 1: props.routes 直接是路由数组
+        // Case 1: props.routes 直接是路由数组。
         if (Array.isArray(props.routes) && props.routes.length > 0) {
             if (props.routes.some(r =>
                     r && typeof r === 'object' && 'path' in r &&
@@ -616,7 +653,7 @@
                 )) return true;
         }
 
-        // Case 2: props.router 是 v3/v4 history-like router，routes 在其上
+        // Case 2: props.router 是 v3/v4 history-like router，routes 在其中。
         if (isLegacyRouterObject(props.router)) return true;
 
         return false;
@@ -676,8 +713,8 @@
     }
 
     // ===== GitHub 专属路由检测 =====
-    // GitHub 使用自研路由层，路由对象中用 Component（大写）+ GitHub 专属字段，
-    // 而非标准 React Router 的 component（小写）/ getComponent / childRoutes
+    // GitHub 使用自研路由层，路由对象中常见 Component（大写）和 GitHub 专属字段，
+    // 而不是标准 React Router 的 component / getComponent / childRoutes。
     function isGitHubRoutes(props) {
         if (!IS_GITHUB) return false;
         if (!props || typeof props !== 'object') return false;
@@ -821,10 +858,10 @@
     }
 
     // ===== 提取 React Router 基础路径（basename）=====
-    // RouterProvider 模式：直接读 result.router.basename（getter）
-    // JSX / Legacy 模式：遍历 Fiber 依赖上下文链，找携带 basename 的 React Context 值
+    // RouterProvider 模式：优先读取 result.router.basename。
+    // JSX / Legacy 模式：遍历 Fiber 依赖上下文链，寻找带 basename 的 React Context 值。
     function extractReactRouterBasename(startFiber, result) {
-        // RouterProvider / 嵌套搜索命中的 RouterProvider：直接访问 router.basename
+        // RouterProvider 或嵌套搜索命中的 RouterProvider：直接访问 router.basename。
         if (result.router) {
             try {
                 const bn = result.router.basename;
@@ -841,8 +878,8 @@
             return '';
         }
 
-        // JSX Routes / Legacy：走 Fiber 依赖上下文链
-        // 路径示例：fiber.dependencies.firstContext.next.memoizedValue.basename
+        // JSX Routes / Legacy：走 Fiber 依赖上下文链。
+        // 路径示例：fiber.dependencies.firstContext.next.memoizedValue.basename。
         if (!startFiber) return '';
         const queue = [startFiber];
         const visited = new WeakSet();
@@ -896,18 +933,18 @@
     }
 
     // ===== JSX <Routes>/<Route> 模式检测 =====
-    // 对应 React Router v5/v6 的 JSX 写法：<Routes><Route path="/" element={...} /></Routes>
-    // 路由信息分散在各个 React Element 的 props 里
+    // 对应 React Router v5/v6 的 JSX 写法：<Routes><Route path="/" element={...} /></Routes>。
+    // 路由信息分散在各个 React Element 的 props 中。
     //
-    // 注意：这里使用宽松的 OR 逻辑，而非严格的 AND 逻辑。
-    // 原因：v6 支持多种合法 Route 写法——
-    //   ① path-only：<Route path="/about" />（无 element，渲染 null）
-    //   ② lazy：<Route path="/home" lazy={() => import('./Home')} />（无 element）
-    //   ③ layout route：<Route element={<Layout/>}>（无 path，包裹子路由）
-    //   ④ index route：<Route index element={<Home/>} />（无 path）
+    // 注意：这里使用较宽松的 OR 逻辑，而不是严格的 AND 逻辑。
+    // 原因：v6 支持多种合法 Route 写法：
+    //   1. path-only：<Route path="/about" />
+    //   2. lazy：<Route path="/home" lazy={() => import('./Home')} />
+    //   3. layout route：<Route element={<Layout/>}>，无 path，包裹子路由
+    //   4. index route：<Route index element={<Home/>} />，无 path
     // 严格要求 path + element/component 会误杀这些合法情况。
-    // 潜在假阳性（如普通组件带 path prop）由两阶段策略兜底：
-    // JSX Routes 仅保存为候选，LegacyRoutes / RouterProvider 优先立刻返回。
+    // 潜在假阳性由两阶段策略兜底：JSX Routes 仅保存为候选，
+    // LegacyRoutes / RouterProvider 命中时优先立即返回。
     function isRouteElement(el) {
         if (!el || typeof el !== 'object') return false;
         const p = el.props;
@@ -921,8 +958,8 @@
             typeof p.component === 'function' ||
             typeof p.render === 'function' ||
             typeof p.lazy === 'function' ||
-            // React Router v5 的 Redirect：<Redirect to="/login" from="/old" />
-            // 没有 path，但有 to（目标）或 from（来源）
+            // React Router v5 Redirect：<Redirect to="/login" from="/old" />
+            // 没有 path，但有 to（目标）或 from（来源）。
             typeof p.to === 'string' ||
             typeof p.from === 'string'
         );
@@ -950,13 +987,13 @@
     }
 
     // ===== 辅助：递归搜索 React Element 嵌套链中的 Router =====
-    // 针对 router 不直接放在 fiber.memoizedProps 顶层，
+    // 处理 router 不直接放在 fiber.memoizedProps 顶层，
     // 而是藏在 props.children.props.children.props.router 这类 React Element 嵌套中的情况。
     //
     // 规则：
-    //   - 每层只检测 RouterProvider / LegacyRoutes / GitHubRoutes（不含 JSX Routes，太宽泛）
-    //   - 沿 .children（单元素或数组）向下递归，maxDepth 控制最大深度
-    //   - 默认 maxDepth=4，覆盖最多 3 层嵌套（已足够 GitHub 2层、其他常见 1层场景）
+    //   - 每层只检测 RouterProvider / LegacyRoutes / GitHubRoutes，不检测 JSX Routes（太宽泛）。
+    //   - 沿 .children（单元素或数组）向下递归，maxDepth 控制最大深度。
+    //   - 默认 maxDepth=4，覆盖最多 3 层嵌套，足够 GitHub 2 层和常见 1 层场景。
     function getJSXRoutesCandidate(props, fiber) {
         if (!props || typeof props !== 'object' || !props.children) return null;
 
@@ -1360,18 +1397,17 @@
         return null;
     }
 
-    // ===== Phase 2: Fiber树BFS扫描，寻找Router实例 =====
-    // 导航策略：只沿 child 和 sibling 前进，绝不将 alternate 加入队列。
-    // 额外读取 fiber.alternate 的 props（不遍历其子树），
-    // 应对路由数据仅存在于 alternate fiber 上的情况。
+    // ===== Phase 2: Fiber 树 BFS 扫描，寻找 Router 实例 =====
+    // 导航策略：只沿 child 和 sibling 前进，不把 alternate 加入队列。
+    // 额外读取 fiber.alternate 的 props，但不遍历其子树，
+    // 用于处理路由数据只存在于 alternate fiber 上的情况。
     //
     // 返回优先级策略（从高到低）：
-    //   RouterProvider → 立即返回（最可靠，特征极明确）
-    //   LegacyRoutes   → 立即返回（可靠，有 routes 数组且带框架特有字段）
-    //   GitHubRoutes   → 立即返回（GitHub 专属，仅 github.com 生效）
-    //   JSX Routes     → 仅作候选，继续扫完整棵树后若无更好结果才返回
-    //                   （最易误判，普通组件的 children 也可能满足条件）
-    //   以上均未命中时，searchNestedReactElements 向 React Element 嵌套链中补充搜索
+    //   RouterProvider：立即返回，特征最明确。
+    //   LegacyRoutes：立即返回，routes 数组带框架特有字段。
+    //   GitHubRoutes：立即返回，仅 github.com 生效。
+    //   JSX Routes：仅作为候选，扫完整棵树后若无更好结果才返回。
+    //   以上均未命中时，通过 searchNestedReactElements 向 React Element 嵌套链补充搜索。
     function routerResultHasRoutes(result) {
         if (!result || typeof result !== 'object') return false;
         try {
@@ -1402,11 +1438,11 @@
 
         const queue = [startFiber];
         const visited = new WeakSet();
-        // 企业级 React 应用组件数量庞大，且 Routes 可能藏在某个 sibling 子树深处。
-        // BFS 必须先遍历完 sibling 之前所有子树才能到达目标，
-        // 3000 对复杂应用往往不够用，提升到 15000 覆盖更多场景。
+        // 企业级 React 应用组件数量庞大，Routes 可能藏在某个 sibling 子树深处。
+        // BFS 必须先遍历完 sibling 之前的子树才能到达目标。
+        // 3000 对复杂应用通常不够，提升到 15000 覆盖更多场景。
         let count = 0;
-        let jsxRoutesCandidate = null; // JSX Routes 命中时不立刻返回，保存为候选
+        let jsxRoutesCandidate = null; // JSX Routes 命中时不立即返回，先保存为候选
 
         let menuRoutesCandidate = null;
         while (queue.length > 0 && count < ROUTER_FIBER_SCAN_MAX_NODES) {
@@ -1418,9 +1454,9 @@
             visited.add(fiber);
 
             // 收集需要检测的 props 来源：
-            // 1. 当前 fiber 的 memoizedProps / pendingProps
-            // 2. alternate fiber 的 memoizedProps / pendingProps
-            //    （路由数据有时仅存于 alternate，不加入队列只读其 props）
+            // 1. 当前 fiber 的 memoizedProps / pendingProps。
+            // 2. alternate fiber 的 memoizedProps / pendingProps。
+            //    路由数据有时只存在于 alternate；这里只读 props，不把 alternate 加入队列。
             const propsSources = [fiber.memoizedProps, fiber.pendingProps, fiber.props];
             if (fiber._currentElement && fiber._currentElement.props) {
                 propsSources.push(fiber._currentElement.props);
@@ -1458,7 +1494,7 @@
                     jsxSources.push(props.children);
                 }
 
-                // RouterProvider：立即返回，特征最明确
+                // RouterProvider：立即返回，特征最明确。
                 if (isRouterProvider(props)) {
                     const result = {
                         type: 'RouterProvider',
@@ -1466,7 +1502,7 @@
                     };
                     if (routerResultHasRoutes(result)) return result;
                 }
-                // LegacyRoutes：立即返回，v3/v4 特有结构
+                // LegacyRoutes：立即返回，v3/v4 特有结构。
                 if (isLegacyRouterRoutes(props)) {
                     const result = {
                         type: 'LegacyRoutes',
@@ -1474,7 +1510,7 @@
                     };
                     if (routerResultHasRoutes(result)) return result;
                 }
-                // GitHub 专属路由：立即返回（仅在 github.com 生效）
+                // GitHub 专属路由：立即返回，仅 github.com 生效。
                 if (isGitHubRoutes(props)) {
                     const result = {
                         type: 'GitHubRoutes',
@@ -1489,8 +1525,8 @@
                     };
                     if (routerResultHasRoutes(result)) return result;
                 }
-                // JSX Routes：仅保存第一个命中，继续扫描不返回
-                // 避免因浅层误判提前退出，错过更深处的真实路由
+                // JSX Routes：只保存第一个命中，继续扫描不立即返回。
+                // 避免浅层误判导致提前退出，错过更深处的真实路由。
                 if (!jsxRoutesCandidate) {
                     let jsxCandidate = getJSXRoutesCandidate(props, fiber);
                     if (!jsxCandidate) {
@@ -1503,8 +1539,8 @@
                         jsxRoutesCandidate = jsxCandidate;
                     }
                 }
-                // 以上均未命中：向 React Element 嵌套链补充搜索（最多 3 层深）
-                // 处理 router 藏在 props.children.props.children.props.router 等场景
+                // 以上均未命中：向 React Element 嵌套链补充搜索。
+                // 处理 router 藏在 props.children.props.children.props.router 等场景。
                 const nested = searchNestedReactElements(props, ROUTER_NESTED_SEARCH_DEPTH);
                 if (!menuRoutesCandidate) {
                     for (const jsxSource of jsxSources) {
@@ -1518,19 +1554,19 @@
                 if (nested && routerResultHasRoutes(nested)) return nested;
             }
 
-            // 严格只走Fiber树导航链路
+            // 严格只走 Fiber 树导航链路。
             if (fiber.child) queue.push(fiber.child);
             if (fiber.sibling) queue.push(fiber.sibling);
             getLegacyReactInstanceChildren(fiber).forEach(child => queue.push(child));
         }
 
         if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
-            debugWarn(`[AntiDebug] Fiber树遍历达到上限（${ROUTER_FIBER_SCAN_MAX_NODES}节点），可能未完整扫描`);
+            debugWarn(`[AntiDebug] Fiber tree scan reached ${ROUTER_FIBER_SCAN_MAX_NODES} nodes; result may be incomplete`);
         } else if (!jsxRoutesCandidate) {
-            debugLog(`[AntiDebug] Fiber树遍历完毕，共访问 ${count} 个节点，未找到Router`);
+            debugLog(`[AntiDebug] Fiber tree scan finished, visited ${count} nodes, no Router found`);
         }
 
-        // RouterProvider / LegacyRoutes 未找到，用 JSX Routes 候选兜底（可能为误判）
+        // RouterProvider / LegacyRoutes 未找到时，用 JSX Routes 候选兜底。
         return jsxRoutesCandidate || menuRoutesCandidate || null;
     }
 
@@ -1657,7 +1693,7 @@
 
     // ===== 路由提取：React Router v3/v4 Legacy 模式 =====
     // 路由结构：{ path, name, component/getComponent, childRoutes, indexRoute }
-    // 子路由字段是 childRoutes（不是 children）
+    // 子路由字段是 childRoutes，不是 children。
     function extractLegacyRoutes(routes, prefix) {
         prefix = prefix || '';
         const list = [];
@@ -1673,7 +1709,7 @@
                 path: fullPath
             });
 
-            // 递归处理 childRoutes（v3/v4 的嵌套路由字段）
+            // 递归处理 childRoutes（v3/v4 的嵌套路由字段）。
             if (Array.isArray(route.childRoutes) && route.childRoutes.length > 0) {
                 list.push(...extractLegacyRoutes(route.childRoutes, fullPath));
             }
@@ -1684,7 +1720,7 @@
         return list;
     }
 
-    // ===== 路由提取：RouterProvider模式 =====
+    // ===== 路由提取：RouterProvider 模式 =====
     // routes 数组结构：{ path, id, children, element, hasErrorBoundary }
     function extractRouterProviderRoutes(routes, prefix) {
         prefix = prefix || '';
@@ -1698,7 +1734,7 @@
                 name: route.id !== undefined ? String(route.id) : '(unnamed)',
                 path: fullPath
             });
-            // 递归处理子路由
+            // 递归处理子路由。
             if (Array.isArray(route.children) && route.children.length > 0) {
                 list.push(...extractRouterProviderRoutes(route.children, fullPath));
             }
@@ -1706,8 +1742,8 @@
         return list;
     }
 
-    // ===== 路由提取：JSX Routes模式 =====
-    // 从 React Element 树的 props.children 中递归提取 path
+    // ===== 路由提取：JSX Routes 模式 =====
+    // 从 React Element 树的 props.children 中递归提取 path。
     function extractJSXRoutes(props, prefix) {
         prefix = prefix || '';
         const list = [];
@@ -1758,7 +1794,7 @@
                 }
                 if (typeof elementProps.to === 'string') {
                     list.push({
-                        name: '(redirect鈫?',
+                        name: '(redirect閳?',
                         path: joinPath(prefix, elementProps.to)
                     });
                 }
@@ -1785,7 +1821,7 @@
             let routePrefix = prefix; // 子路由递归时使用的 base path
 
             if (typeof p.path === 'string') {
-                // 常规字符串 path
+                // 常规字符串 path。
                 const fullPath = joinPath(prefix, p.path);
                 list.push({
                     name: '',
@@ -1793,8 +1829,8 @@
                 });
                 routePrefix = fullPath;
             } else if (Array.isArray(p.path) && p.path.length > 0) {
-                // React Router v5：path 可为数组，如 <Route path={['/login', '/signup']} />
-                // 每个路径单独展开为一条路由
+                // React Router v5: path 可为数组，如 <Route path={['/login', '/signup']} />。
+                // 每个路径单独展开为一条路由。
                 for (const singlePath of p.path) {
                     if (typeof singlePath === 'string') {
                         list.push({
@@ -1803,14 +1839,14 @@
                         });
                     }
                 }
-                // 子路由以数组第一个 path 为 base
+                // 子路由以数组第一个 path 作为 base。
                 if (typeof p.path[0] === 'string') {
                     routePrefix = joinPath(prefix, p.path[0]);
                 }
             } else {
-                // React Router v5 Redirect：没有 path，但有 from / to
-                // from 是来源路径（用户可访问的路径）
-                // to  是目标路径（catch-all 时用于表示默认落地页）
+                // React Router v5 Redirect：没有 path，但有 from / to。
+                // from 是来源路径（用户可访问的路径）。
+                // to 是目标路径（catch-all 时用于表示默认落地页）。
                 if (typeof p.from === 'string') {
                     list.push({
                         name: '(redirect)',
@@ -1819,13 +1855,13 @@
                 }
                 if (typeof p.to === 'string') {
                     list.push({
-                        name: '(redirect→)',
+                        name: '(redirect鈫?',
                         path: joinPath(prefix, p.to)
                     });
                 }
             }
 
-            // 递归处理嵌套 Route（带布局路由的情况）
+            // 递归处理嵌套 Route（带布局路由的情况）。
             if (p.children) {
                 list.push(...extractJSXRoutes(p, routePrefix));
             }
@@ -1833,7 +1869,7 @@
         return list;
     }
 
-    // ===== 检测路由模式（history / hash / null） =====
+    // ===== 检测路由模式（history / hash / null）=====
     function detectRouterModeByCreateHref(createHref) {
         if (typeof createHref !== 'function') return null;
         const testLocation = {
@@ -2317,7 +2353,7 @@
     }
 
     // ===== 主尝试函数：串联两阶段扫描并输出结果 =====
-    // 类型优先级：RouterProvider > GitHubRoutes > LegacyRoutes > Routes
+    // 类型优先级：RouterProvider > GitHubRoutes > LegacyRoutes > Routes。
     const TYPE_PRIORITY = {
         RouterProvider: 4,
         GitHubRoutes: 3,
@@ -2456,16 +2492,16 @@
             if (result.type === 'RouterProvider') {
                 mode = detectRouterMode(result.router, startFiber);
                 routes = extractRouterProviderRoutes(result.router.routes);
-                debugLog(`\n📋 React Router 路由列表 [RouterProvider - ${mode} 模式]：`);
+                debugLog(`\n[AntiDebug] React Router routes [RouterProvider - ${mode}]`);
                 debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
                 })));
-                debugLog('\n🔗 Router 实例：', result.router);
+                debugLog('\n[AntiDebug] Router instance:', result.router);
             } else if (result.type === 'GitHubRoutes') {
                 routes = extractGitHubRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n📋 React Router 路由列表 [GitHub 自研路由]：');
+                debugLog('\n[AntiDebug] React Router routes [GitHubRoutes]');
                 debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
@@ -2473,7 +2509,7 @@
             } else if (result.type === 'ContextRoutes') {
                 routes = extractRouterProviderRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n[AntiDebug] React Router 路由列表 [Context routes 模式]:');
+                debugLog('\n[AntiDebug] React Router routes [ContextRoutes]');
                 debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
@@ -2481,23 +2517,23 @@
             } else if (result.type === 'LegacyRoutes') {
                 routes = extractLegacyRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n📋 React Router 路由列表 [v3/v4 Legacy 模式]：');
+                debugLog('\n[AntiDebug] React Router routes [LegacyRoutes]');
                 debugTable(routes.map(r => ({
                     Name: r.name,
                     Path: r.path
                 })));
-                debugLog('\n🔗 原始 routes：', result.routes);
+                debugLog('\n[AntiDebug] Raw routes:', result.routes);
             } else if (result.type === 'MenuRoutes') {
                 routes = result.routes || [];
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n[AntiDebug] React Router 璺敱鍒楄〃 [Menu routes fallback]:');
+                debugLog('\n[AntiDebug] React Router routes [MenuRoutes fallback]');
                 debugTable(routes.map(r => ({
                     Name: r.name || '(unnamed)',
                     Path: r.path
                 })));
             } else {
                 routes = extractJSXRoutes(result.props);
-                debugLog('\n📋 React Router 路由列表 [JSX <Routes> 模式]：');
+                debugLog('\n[AntiDebug] React Router routes [JSX Routes]');
                 debugTable(routes.map(r => ({
                     Name: r.name || '(unnamed)',
                     Path: r.path
@@ -2534,7 +2570,7 @@
                 instanceByRoot.set(rootKey, instanceCandidate);
             }
 
-            // 按优先级保留最重要的 type/mode/base
+            // 按优先级保留最重要的 type/mode/base。
             if (!primaryType ||
                 (TYPE_PRIORITY[result.type] || 0) > (TYPE_PRIORITY[primaryType] || 0) ||
                 ((TYPE_PRIORITY[result.type] || 0) === (TYPE_PRIORITY[primaryType] || 0) && !primaryMode && mode)
@@ -2544,7 +2580,7 @@
                 primaryBase = instanceBase;
             }
 
-            // 按 name::path 去重后汇入总列表
+            // 按 name::path 去重后汇入总列表。
             for (const route of routes) {
                 const key = `${route.name || ''}::${route.path}`;
                 if (!seenKeys.has(key)) {
@@ -2590,10 +2626,10 @@
         return false;
     }
 
-    // ===== DOM变化监控（MutationObserver） =====
-    // 用于应对 React 懒加载场景，在DOM发生变化时补扫
+    // ===== DOM 变化监控（MutationObserver）=====
+    // 用于应对 React 懒加载场景，在 DOM 发生变化时补扫。
     function startDOMObserver() {
-        // 立即尝试一次
+        // 立即尝试一次。
         if (tryGetRouter()) {
             cleanupResources();
             return;
@@ -2624,9 +2660,9 @@
         }
     }
 
-    // ===== 指数退避轮询（兜底机制） =====
-    // React 挂载时机不固定，用轮询保证不遗漏
-    // 共尝试6次，间隔：200ms → 400ms → 800ms → 1600ms → 3200ms → 6400ms
+    // ===== 指数退避轮询（兜底机制）=====
+    // React 挂载时机不固定，用轮询减少遗漏。
+    // 共尝试 6 次，间隔：200ms -> 400ms -> 800ms -> 1600ms -> 3200ms -> 6400ms。
     function startPollingRetry() {
         let delay = 200;
         let remainingTries = 6;
@@ -2647,7 +2683,7 @@
             } else if (hasOutputResult) {
                 cleanupResources();
             } else {
-                console.log('❌ 未找到React Router实例（已重试多次，请确认站点是否使用React Router）');
+                console.log('[AntiDebug] React Router instance not found after retries');
                 cleanupResources();
             }
         }
@@ -2664,7 +2700,7 @@
                 startPollingRetry();
             });
         } else {
-            // DOM 已就绪，立即开始
+            // DOM 已就绪，立即开始。
             startDOMObserver();
             startPollingRetry();
         }
