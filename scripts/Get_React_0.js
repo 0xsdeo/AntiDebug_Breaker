@@ -361,7 +361,7 @@
 
             return highest || fiber;
         } catch (e) {
-            console.warn('[AntiDebug] getStartFiberFromHostFiber 出错:', e);
+            debugWarn('[AntiDebug] getStartFiberFromHostFiber 出错:', e);
             return null;
         }
     }
@@ -1476,13 +1476,11 @@
                 }
                 // GitHub 专属路由：立即返回（仅在 github.com 生效）
                 if (isGitHubRoutes(props)) {
-                if (isGitHubRoutes(props)) {
                     const result = {
                         type: 'GitHubRoutes',
                         routes: props.routes
                     };
                     if (routerResultHasRoutes(result)) return result;
-                }
                 }
                 if (isRouteConfigRoutes(props)) {
                     const result = {
@@ -2357,10 +2355,37 @@
         return `${route && route.name || ''}::${route && route.path || ''}`;
     }
 
+    function getInstanceRoutesSignature(instance) {
+        if (!instance || !Array.isArray(instance.routes)) return '';
+        return instance.routes.map(getRouteKey).sort().join('|');
+    }
+
+    function dedupeGitHubRouteInstances(instances) {
+        if (!IS_GITHUB || !Array.isArray(instances) || instances.length <= 1) return instances;
+
+        const result = [];
+        const seen = new Set();
+        for (const instance of instances) {
+            if (!instance) continue;
+            const isGitHubRouteInstance = instance.routerType === 'GitHubRoutes';
+            const routesSignature = getInstanceRoutesSignature(instance);
+            const key = isGitHubRouteInstance && routesSignature ?
+                `${instance.routerType}:${instance.routerMode || ''}:${instance.routerBase || ''}:${routesSignature}` :
+                '';
+
+            if (key) {
+                if (seen.has(key)) continue;
+                seen.add(key);
+            }
+            result.push(instance);
+        }
+        return result;
+    }
+
     function getResultSignature(result) {
         if (!result || !Array.isArray(result.instances)) return '';
         const instanceParts = result.instances.map(instance => {
-            const routeKeys = (instance.routes || []).map(getRouteKey).sort().join('|');
+            const routeKeys = getInstanceRoutesSignature(instance);
             return `${instance.rootId || ''}:${instance.routerType || ''}:${instance.routerMode || ''}:${instance.routerBase || ''}:${routeKeys}`;
         }).sort();
         return instanceParts.join('||');
@@ -2529,7 +2554,7 @@
             }
         }
 
-        const instances = Array.from(instanceByRoot.values());
+        const instances = dedupeGitHubRouteInstances(Array.from(instanceByRoot.values()));
 
         if (found && collectedRoutes.length > 0 && instances.length > 0) {
             hasOutputResult = true;
