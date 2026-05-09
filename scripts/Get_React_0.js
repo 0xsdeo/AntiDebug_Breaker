@@ -55,7 +55,7 @@
     const REACT_MEMO_TYPE = Symbol.for('react.memo');
     const REACT_FORWARD_REF_TYPE = Symbol.for('react.forward_ref');
     const ROUTER_FIBER_SCAN_MAX_NODES = 15000;
-    const ROUTER_NESTED_SEARCH_DEPTH = 4; // 4 层足以覆盖 GitHub 2 层和其他常见 1 层场景；原值 10 开销过高
+    const ROUTER_NESTED_SEARCH_DEPTH = 10;
     const CREATE_HREF_SEARCH_DEPTH = ROUTER_NESTED_SEARCH_DEPTH;
     const RESULT_COMPLETION_WINDOW_MS = 3500;
     const STABLE_SCAN_LIMIT = 3;
@@ -1467,23 +1467,16 @@
             const contextRouter = searchRouterInFiberContext(fiber);
             if (contextRouter && routerResultHasRoutes(contextRouter)) return contextRouter;
 
-            // effect/hook 深层扫描开销高，只在组件名含 router/route 时触发
-            const fiberDisplayName = getFiberDisplayName(fiber);
-            const isRouterRelated = isRouterRelatedName(fiberDisplayName);
-            if (isRouterRelated) {
-                const effectRouteConfig = findRouteConfigInEffectFibers(fiber);
-                if (effectRouteConfig && routerResultHasRoutes(effectRouteConfig)) return effectRouteConfig;
+            const effectRouteConfig = findRouteConfigInEffectFibers(fiber);
+            if (effectRouteConfig && routerResultHasRoutes(effectRouteConfig)) return effectRouteConfig;
 
-                const hookRouteConfig = findRouteConfigInObject(fiber.memoizedState, 80);
-                if (hookRouteConfig && routerResultHasRoutes(hookRouteConfig)) return hookRouteConfig;
-            }
+            const hookRouteConfig = findRouteConfigInObject(fiber.memoizedState, 80);
+            if (hookRouteConfig && routerResultHasRoutes(hookRouteConfig)) return hookRouteConfig;
 
             const alt = fiber.alternate;
             if (alt && alt !== fiber && !visited.has(alt)) {
-                if (isRouterRelated) {
-                    const altHookRouteConfig = findRouteConfigInObject(alt.memoizedState, 80);
-                    if (altHookRouteConfig && routerResultHasRoutes(altHookRouteConfig)) return altHookRouteConfig;
-                }
+                const altHookRouteConfig = findRouteConfigInObject(alt.memoizedState, 80);
+                if (altHookRouteConfig && routerResultHasRoutes(altHookRouteConfig)) return altHookRouteConfig;
 
                 propsSources.push(alt.memoizedProps, alt.pendingProps, alt.props);
                 if (alt.stateNode && alt.stateNode.props) {
@@ -1609,23 +1602,16 @@
             const contextRouter = searchRouterInFiberContext(fiber);
             if (contextRouter && routerResultHasRoutes(contextRouter)) return contextRouter;
 
-            // effect/hook 深层扫描开销高，只在组件名含 router/route 时触发
-            const fiberDisplayName = getFiberDisplayName(fiber);
-            const isRouterRelated = isRouterRelatedName(fiberDisplayName);
-            if (isRouterRelated) {
-                const effectRouteConfig = findRouteConfigInEffectFibers(fiber);
-                if (effectRouteConfig && routerResultHasRoutes(effectRouteConfig)) return effectRouteConfig;
+            const effectRouteConfig = findRouteConfigInEffectFibers(fiber);
+            if (effectRouteConfig && routerResultHasRoutes(effectRouteConfig)) return effectRouteConfig;
 
-                const hookRouteConfig = findRouteConfigInObject(fiber.memoizedState, 80);
-                if (hookRouteConfig && routerResultHasRoutes(hookRouteConfig)) return hookRouteConfig;
-            }
+            const hookRouteConfig = findRouteConfigInObject(fiber.memoizedState, 80);
+            if (hookRouteConfig && routerResultHasRoutes(hookRouteConfig)) return hookRouteConfig;
 
             const alt = fiber.alternate;
             if (alt && alt !== fiber && !visited.has(alt)) {
-                if (isRouterRelated) {
-                    const altHookRouteConfig = findRouteConfigInObject(alt.memoizedState, 80);
-                    if (altHookRouteConfig && routerResultHasRoutes(altHookRouteConfig)) return altHookRouteConfig;
-                }
+                const altHookRouteConfig = findRouteConfigInObject(alt.memoizedState, 80);
+                if (altHookRouteConfig && routerResultHasRoutes(altHookRouteConfig)) return altHookRouteConfig;
 
                 propsSources.push(
                     alt.memoizedProps,
