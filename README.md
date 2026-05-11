@@ -6,6 +6,14 @@
 
 如何提交您自己的脚本：<a href="https://github.com/0xsdeo/AntiDebug_Breaker/wiki/%E6%8F%90%E4%BA%A4%E6%82%A8%E8%87%AA%E5%B7%B1%E7%9A%84hook%E8%84%9A%E6%9C%AC">AntiDebug_Breaker wiki</a>
 
+## 赞助商
+
+<a href="https://bestproxy.com/?keyword=hljimj1i" target="_blank">
+  <img src="image/README/1778477632106.gif" alt="BestProxy - 高纯度住宅IP资源，支持一号一IP独享模式，全链路防关联，降低风控概率，著提升账号通过率与长期存活率" width="100%">
+</a>
+
+> [BestProxy](https://bestproxy.com/?keyword=hljimj1i) - 高纯度住宅IP资源，支持一号一IP独享模式，全链路防关联，降低风控概率，著提升账号通过率与长期存活率
+
 ## 教学视频
 
 反调试：https://www.bilibili.com/video/BV1gQ4mzMEA4
