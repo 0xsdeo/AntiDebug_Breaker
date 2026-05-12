@@ -10,6 +10,8 @@
 
 - [BestProxy](https://bestproxy.com/?keyword=hljimj1i)
 
+9折折扣码：**ZCTYUH90**，注册后赠送500M流量
+
 <a href="https://bestproxy.com/?keyword=hljimj1i" target="_blank">
   <img src="image/README/1778477632106.gif" alt="BestProxy - 高纯度住宅IP资源，支持一号一IP独享模式，全链路防关联，降低风控概率，著提升账号通过率与长期存活率" width="100%">
 </a>
@@ -17,6 +19,10 @@
 > [BestProxy](https://bestproxy.com/?keyword=hljimj1i) - 高纯度住宅IP资源，支持一号一IP独享模式，全链路防关联，降低风控概率，著提升账号通过率与长期存活率
 
 - [RapidProxy](https://www.rapidproxy.io/?ref=0xsdeo)
+
+9折折扣码：**0xsdeo**
+
+新用户注册提供免费500MB，测试联系：https://t.me/erhutongzi
 
 <a href="https://www.rapidproxy.io/?ref=0xsdeo" target="_blank">
   <img src="image/README/1778569506987.png" alt="RapidProxy - 提供全球 9000万+ 真实住宅 IP，支持动态/静态住宅代理，覆盖 190+ 国家地区。" width="100%">
