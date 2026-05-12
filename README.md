@@ -8,11 +8,18 @@
 
 ## 赞助商
 
+1. BestProxy
+
 <a href="https://bestproxy.com/?keyword=hljimj1i" target="_blank">
   <img src="image/README/1778477632106.gif" alt="BestProxy - 高纯度住宅IP资源，支持一号一IP独享模式，全链路防关联，降低风控概率，著提升账号通过率与长期存活率" width="100%">
 </a>
 
 > [BestProxy](https://bestproxy.com/?keyword=hljimj1i) - 高纯度住宅IP资源，支持一号一IP独享模式，全链路防关联，降低风控概率，著提升账号通过率与长期存活率
+
+2. RapidProxy
+
+![1778569506987](image/README/1778569506987.png)
+>[RapidProxy](https://www.rapidproxy.io/?ref=0xsdeo) 提供全球 9000万+ 真实住宅 IP，支持动态/静态住宅代理，覆盖 190+ 国家地区。高匿名、低封禁、稳定高速，流量不会过期，适用于自动化、AI 数据采集、多账号管理等场景。立即免费测试吧！
 
 ## 教学视频
 
