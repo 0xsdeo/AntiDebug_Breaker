@@ -18,7 +18,10 @@
 
 2. RapidProxy
 
-![1778569506987](image/README/1778569506987.png)
+<a href="https://www.rapidproxy.io/?ref=0xsdeo" target="_blank">
+  <img src="image/README/1778569506987.png" alt="RapidProxy - 提供全球 9000万+ 真实住宅 IP，支持动态/静态住宅代理，覆盖 190+ 国家地区。" width="100%">
+</a>
+
 >[RapidProxy](https://www.rapidproxy.io/?ref=0xsdeo) 提供全球 9000万+ 真实住宅 IP，支持动态/静态住宅代理，覆盖 190+ 国家地区。高匿名、低封禁、稳定高速，流量不会过期，适用于自动化、AI 数据采集、多账号管理等场景。立即免费测试吧！
 
 ## 教学视频
