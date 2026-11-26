@@ -12,13 +12,15 @@
 
 新增 **MCP** 和 **Skills** 功能，使用说明请参考 [MCP 文档](mcp/README.md) 和 [Skills 目录](skills/antidebug-breaker-skills/)。
 
+
+
 ## 赞助商
 
 感谢以下朋友与伙伴对 AntiDebug Breaker 的支持。
 
 | Logo | 赞助商 | 介绍 | 邀请码 | 官网 |
 | :--- | :--- | :--- | :--- | :--- |
-| [![BirdProxies](image/README/1779357961398.png)](https://birdproxies.com/@ANTIDEBUG_BREAKER) | BirdProxies | 代理不该复杂也不该贵。覆盖 195+ 地区的快速住宅代理和 ISP 代理，价格公道，支持到位。官网首页玩 FlappyBird 小游戏可免费领流量。 | 首单10%折扣 + 额外15%住宅代理免费流量<br>测试联系：https://discord.com/invite/birdproxies | [立即注册](https://birdproxies.com/@ANTIDEBUG_BREAKER) |
+| [![1795664180061](image/README/1795664180061.png)](https://proxy-seller.com/?utm_source=github&utm_medium=referral&utm_campaign=partner_promo&utm_term=github&partner=E97451DA0D0C4048) | Proxy-Seller | Proxy-Seller 提供稳定可靠的 IPv4、IPv6、ISP、住宅代理和移动代理服务，支持 HTTP(S)/SOCKS5 协议，价格灵活，每个 IP 仅需 $0.70 起，并提供全天候 24/7 客户支持。非常适合网页抓取、自动化操作和数据采集等用途。<br>专属优惠码：AntidebugBreaker，使用该优惠码即可享受 15% 的折扣！ | AntidebugBreaker | [立即注册](https://proxy-seller.com/?utm_source=github&utm_medium=referral&utm_campaign=partner_promo&utm_term=github&partner=E97451DA0D0C4048) |
 
 ## 教学视频
 
